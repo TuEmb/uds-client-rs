@@ -69,7 +69,7 @@ impl ResponseSlot {
                 // Single frame
                 Ok(UdsResponse::SingleFrame(res[1], res[2], res[3]))
             }
-            0x01 => {
+            0x10 => {
                 let size = (((res[0] & 0x0f) as u16) << 8) + res[1] as u16;
                 // First frame
                 Ok(UdsResponse::FirstFrame(
@@ -80,12 +80,12 @@ impl ResponseSlot {
                     res[5..].to_vec(),
                 ))
             }
-            0x02 => {
+            0x20 => {
                 // Consecutive
                 let idx = res[0] & 0x0F;
                 Ok(UdsResponse::ConsecutiveFrame(idx, res[1..].to_vec()))
             }
-            0x03 => {
+            0x30 => {
                 // Flow control frame
                 Ok(UdsResponse::FlowControlFrame)
             }

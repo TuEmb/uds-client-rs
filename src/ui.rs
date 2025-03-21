@@ -21,6 +21,7 @@ impl TryFrom<i32> for UiEventTx {
     }
 }
 
+#[derive(Debug)]
 pub enum UiEventTx {
     Reset(ResetType),
     RealTime(RealTimeType),

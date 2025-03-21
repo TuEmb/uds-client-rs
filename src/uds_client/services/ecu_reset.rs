@@ -7,6 +7,7 @@ use embedded_can::nb::Can;
 
 /// Reset ECU subcommand
 #[repr(u8)]
+#[derive(Debug)]
 pub enum ResetType {
     RealTime = 0x40,
     Telematic = 0x41,

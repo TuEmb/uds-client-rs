@@ -1,16 +1,14 @@
 //!  Provides methods to reset the ECU that includes soft-reset, hard-reset, ...
 //!
 
-use std::time::Duration;
-
 use crate::uds_client::{DiagError, PciByte, Response, UdsClient, response::UdsResponse};
 use automotive_diag::uds::UdsCommand;
 use embedded_can::nb::Can;
 use log::info;
-use tokio::time::timeout;
 
 /// Reset ECU subcommand
 #[repr(u8)]
+#[derive(Debug)]
 pub enum RealTimeType {
     SlowRate = 0x01,   // 30 seconds
     MediumRate = 0x02, // 5 seconds
@@ -45,12 +43,12 @@ impl<T: Can> UdsClient<'_, T> {
     ///     The function will request an Realtime data sent from ECU with slow rate.
     pub async fn uds_real_time_data_slow(&mut self) -> Result<(), DiagError> {
         dbg!("UDS: send realtime data request (slow mode)");
-        let pci_byte = PciByte::new(crate::uds_client::PciType::SingleFrame, 4);
+        let pci_byte = PciByte::new(crate::uds_client::PciType::SingleFrame, 3);
         let re = self
             .send_command_with_response(
                 pci_byte,
                 UdsCommand::ReadDataByPeriodicIdentifier,
-                &[0x01, 0x20, 0x00],
+                &[0x01, 0xB0],
             )
             .await?;
         self.real_time_data_process(re).await?;
@@ -63,12 +61,12 @@ impl<T: Can> UdsClient<'_, T> {
     ///     The function will request an Realtime data sent from ECU with medium rate.
     pub async fn uds_real_time_data_medium(&mut self) -> Result<(), DiagError> {
         dbg!("UDS: send realtime data request (medium mode)");
-        let pci_byte = PciByte::new(crate::uds_client::PciType::SingleFrame, 4);
+        let pci_byte = PciByte::new(crate::uds_client::PciType::SingleFrame, 3);
         let re = self
             .send_command_with_response(
                 pci_byte,
                 UdsCommand::ReadDataByPeriodicIdentifier,
-                &[0x02, 0x20, 0x00],
+                &[0x02, 0xB0],
             )
             .await?;
         self.real_time_data_process(re).await?;
@@ -81,12 +79,12 @@ impl<T: Can> UdsClient<'_, T> {
     ///     The function will request an Realtime data sent from ECU with fast rate.
     pub async fn uds_real_time_data_fast(&mut self) -> Result<(), DiagError> {
         dbg!("UDS: send realtime data request (fast mode)");
-        let pci_byte = PciByte::new(crate::uds_client::PciType::SingleFrame, 4);
+        let pci_byte = PciByte::new(crate::uds_client::PciType::SingleFrame, 3);
         let re = self
             .send_command_with_response(
                 pci_byte,
                 UdsCommand::ReadDataByPeriodicIdentifier,
-                &[0x03, 0x20, 0x00],
+                &[0x03, 0xB0],
             )
             .await?;
         self.real_time_data_process(re).await?;
@@ -99,16 +97,17 @@ impl<T: Can> UdsClient<'_, T> {
     ///     The function will send a stop event for realtime data from ECU.
     pub async fn uds_real_time_data_stop(&mut self) -> Result<(), DiagError> {
         dbg!("UDS: stop realtime data");
-        let pci_byte = PciByte::new(crate::uds_client::PciType::SingleFrame, 4);
+        let pci_byte = PciByte::new(crate::uds_client::PciType::SingleFrame, 3);
         self.send_command_with_response(
             pci_byte,
             UdsCommand::ReadDataByPeriodicIdentifier,
-            &[0x04, 0x20, 0x00],
+            &[0x04, 0xB0],
         )
         .await?;
         Ok(())
     }
 
+    /// Process the realtime data transfer from ECU
     async fn real_time_data_process(&mut self, response: UdsResponse) -> Result<(), DiagError> {
         let mut remain;
         if let UdsResponse::FirstFrame(size, did, sub_id, iden, data) = response {
@@ -119,36 +118,31 @@ impl<T: Can> UdsClient<'_, T> {
                 size, did, sub_id, iden, data
             );
             remain = size as usize - data.len();
-            let mut pre_idx = 15;
+            let mut pre_idx = 0;
             loop {
-                match timeout(Duration::from_secs(5), self.receive()).await {
-                    Ok(res) => {
-                        if let Response::Ok(uds_frame) = res? {
-                            match uds_frame {
-                                UdsResponse::ConsecutiveFrame(idx, uds_data) => {
-                                    remain = remain - uds_data.len();
-                                    if idx != if pre_idx == 15 { 1 } else { pre_idx + 1 } {
-                                        return Err(DiagError::InvalidResponseLength);
-                                    }
-                                    pre_idx = idx;
-                                    info!("UDS received: {}, data: {:?}", idx, uds_data);
-                                }
-                                UdsResponse::FirstFrame(size, did, sub_id, iden, data) => {
-                                    info!(
-                                        "UDS received first frame: \n\t\tsize {:02X}\t\tdid {:02X}\t\tsub_id {:02X}\t\tident: {:02X}\t\tdata {:?}",
-                                        size, did, sub_id, iden, data
-                                    );
-                                    let pci_byte =
-                                        PciByte::new(crate::uds_client::PciType::FlowControl, 0);
-                                    self.send_command(pci_byte, 0x00, &[0x00])?;
-                                    remain = size as usize - data.len();
-                                    pre_idx = 0;
-                                }
-                                _ => {}
+                match self.receive().await {
+                    Response::Ok(uds_frame) => match uds_frame {
+                        UdsResponse::ConsecutiveFrame(idx, uds_data) => {
+                            remain = remain - uds_data.len();
+                            if idx != if pre_idx == 15 { 0 } else { pre_idx + 1 } {
+                                return Err(DiagError::InvalidResponseLength);
                             }
+                            pre_idx = idx;
+                            info!("UDS received: {}, data: {:?}", idx, uds_data);
                         }
-                    }
-                    Err(_) => {
+                        UdsResponse::FirstFrame(size, did, sub_id, iden, data) => {
+                            info!(
+                                "UDS received first frame: \n\t\tsize {:02X}\t\tdid {:02X}\t\tsub_id {:02X}\t\tident: {:02X}\t\tdata {:?}",
+                                size, did, sub_id, iden, data
+                            );
+                            let pci_byte = PciByte::new(crate::uds_client::PciType::FlowControl, 0);
+                            self.send_command(pci_byte, 0x00, &[0x00])?;
+                            remain = size as usize - data.len();
+                            pre_idx = 0;
+                        }
+                        _ => {}
+                    },
+                    Response::Error => {
                         break;
                     }
                 }

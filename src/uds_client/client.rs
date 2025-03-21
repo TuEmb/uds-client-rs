@@ -48,14 +48,14 @@ use log::debug;
 use std::sync::{Arc, LazyLock};
 
 pub struct UdsClient<'a, T: Can> {
-    channel: &'a mut T,
+    channel: T,
     id: Id,
     resp: &'a Arc<ResponseSlot>,
 }
 
 #[allow(dead_code)]
 impl<'a, T: Can> UdsClient<'a, T> {
-    pub fn new(channel: &'a mut T, id: u32, resp: &'a LazyLock<Arc<ResponseSlot>>) -> Self {
+    pub fn new(channel: T, id: u32, resp: &'a LazyLock<Arc<ResponseSlot>>) -> Self {
         let id = Id::Extended(ExtendedId::new(id).unwrap());
         Self { channel, id, resp }
     }
@@ -109,8 +109,8 @@ impl<'a, T: Can> UdsClient<'a, T> {
     }
 
     /// Receive the frame from UDS server
-    pub async fn receive(&mut self) -> Result<Response, DiagError> {
-        Ok(self.resp.wait_for_response().await)
+    pub async fn receive(&mut self) -> Response {
+        self.resp.wait_for_response().await
     }
 
     // pub fn send_raw_frame_with_response(&mut self, frame: T::Frame) -> Result<(), DiagError> {
