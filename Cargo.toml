@@ -1,0 +1,28 @@
+[package]
+name = "uds-client-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+slint = "1.10.0"
+thiserror="2.0.12"
+rfd = "0.15.3"
+env_logger = "0.11.7"
+log = "0.4.26"
+embedded-io-async = "0.6.1"
+tokio = { version = "1.44.0", features = ["full"] }
+nb = "1"
+automotive_diag = "0.1.11"
+chrono = "0.4.40"
+embedded-can = "0.4.1"
+
+[target.'cfg(windows)'.dependencies]
+
+pcan-basic = { git = "https://github.com/TuEmb/pcan-basic.git", branch="main"}
+
+[target.'cfg(unix)'.dependencies]
+dialoguer = "0.11.0"
+socketcan = { git = "https://github.com/socketcan-rs/socketcan-rs.git", rev="e0d7760eca8085b247f37ea22f0aa41e00fa25fa", features = ["enumerate"] }
+
+[build-dependencies]
+slint-build = "1.10.0"
