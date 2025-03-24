@@ -4,7 +4,7 @@ use log::info;
 use tokio::sync::{Mutex, mpsc::Receiver};
 use uds_client_rs::{RealTimeType, ResetType, UdsClient, UdsSocketTx};
 
-use crate::{ui::UiEventTx, RESPONSE_SLOT};
+use crate::{RESPONSE_SLOT, ui::UiEventTx};
 
 /// The UDS client task: receive and process the event from UI
 pub async fn uds_client_task(
@@ -21,24 +21,15 @@ pub async fn uds_client_task(
                 info!("Received event from UI: {:?}", event);
                 match event {
                     UiEventTx::Reset(reset_type) => match reset_type {
-                        ResetType::RealTime => uds_client_clone
-                            .lock()
-                            .await
-                            .uds_reset_118()
-                            .await
-                            .unwrap(),
-                        ResetType::Telematic => uds_client_clone
-                            .lock()
-                            .await
-                            .uds_reset_148()
-                            .await
-                            .unwrap(),
-                        ResetType::Imx => uds_client_clone
-                            .lock()
-                            .await
-                            .uds_reset_imx()
-                            .await
-                            .unwrap(),
+                        ResetType::RealTime => {
+                            uds_client_clone.lock().await.uds_reset_118().await.unwrap()
+                        }
+                        ResetType::Telematic => {
+                            uds_client_clone.lock().await.uds_reset_148().await.unwrap()
+                        }
+                        ResetType::Imx => {
+                            uds_client_clone.lock().await.uds_reset_imx().await.unwrap()
+                        }
                         ResetType::Esp32Wifi => uds_client_clone
                             .lock()
                             .await
@@ -51,12 +42,9 @@ pub async fn uds_client_task(
                             .uds_reset_esp32_ble()
                             .await
                             .unwrap(),
-                        ResetType::Lte => uds_client_clone
-                            .lock()
-                            .await
-                            .uds_reset_lte()
-                            .await
-                            .unwrap(),
+                        ResetType::Lte => {
+                            uds_client_clone.lock().await.uds_reset_lte().await.unwrap()
+                        }
                         ResetType::Lizard => uds_client_clone
                             .lock()
                             .await

@@ -1,13 +1,13 @@
 #[cfg(target_os = "linux")]
 use embedded_can::Frame;
 use log::{error, info};
-use uds_client_rs::{UdsSocket, UdsSocketRx, ResponseSlot};
 use std::{
     sync::{Arc, LazyLock},
     time::Duration,
 };
 use tokio::sync::mpsc;
 use uds::uds_client_task;
+use uds_client_rs::{ResponseSlot, UdsSocket, UdsSocketRx};
 use ui::UiEventTx;
 
 mod uds;
