@@ -1,12 +1,7 @@
-use embedded_can::{ExtendedId, Frame, nb::Can};
+#[cfg(target_os = "windows")]
+use embedded_can::ExtendedId;
+use embedded_can::{Frame, nb::Can};
 use embedded_io_async::ErrorType;
-#[cfg(target_os = "linux")]
-use socketcan::{CanFrame, CanSocket, Socket};
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
-};
-
 #[cfg(target_os = "windows")]
 use pcan_basic::{
     bus::UsbBus,
@@ -15,6 +10,12 @@ use pcan_basic::{
     socket::usb::UsbCanSocket,
     socket::{Baudrate, RecvCan, SendCan},
     socket::{CanFrame, MessageType},
+};
+#[cfg(target_os = "linux")]
+use socketcan::{CanFrame, CanSocket, Socket};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
 };
 
 #[cfg(target_os = "windows")]
@@ -145,10 +146,7 @@ impl CanSocketRx for UdsSocketRx {
 
 #[cfg(target_os = "linux")]
 impl UdsSocketRx {
-    fn receive_with_timeout(
-        &mut self,
-        timeout: Duration,
-    ) -> nb::Result<CanFrame, socketcan::Error> {
+    pub fn receive_with_timeout(&mut self, timeout: Duration) -> socketcan::IoResult<CanFrame> {
         self.rx.lock().unwrap().read_frame_timeout(timeout)
     }
 }

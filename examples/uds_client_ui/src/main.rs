@@ -1,19 +1,16 @@
 #[cfg(target_os = "linux")]
 use embedded_can::Frame;
 use log::{error, info};
-use socket_can::UdsSocketRx;
+use uds_client_rs::{UdsSocket, UdsSocketRx, ResponseSlot};
 use std::{
     sync::{Arc, LazyLock},
     time::Duration,
 };
 use tokio::sync::mpsc;
 use uds::uds_client_task;
-use uds_client::ResponseSlot;
 use ui::UiEventTx;
 
-mod socket_can;
 mod uds;
-mod uds_client;
 mod ui;
 
 slint::include_modules!();
@@ -26,9 +23,9 @@ async fn main() {
         .filter_level(log::LevelFilter::Debug)
         .init();
     #[cfg(target_os = "linux")]
-    let (tx_socket, rx_socket) = socket_can::UdsSocket::new("can0").split();
+    let (tx_socket, rx_socket) = UdsSocket::new("can0").split();
     #[cfg(target_os = "windows")]
-    let (tx_socket, rx_socket) = socket_can::UdsSocket::new().split();
+    let (tx_socket, rx_socket) = UdsSocket::new().split();
     let (ui_tx, uds_rx) = mpsc::channel::<UiEventTx>(10);
 
     let ui = MainWindow::new().unwrap();
@@ -54,7 +51,7 @@ pub async fn response_task(mut rx_socket: UdsSocketRx) -> Result<(), ()> {
             if let Ok(frame) = rx_socket.receive_with_timeout(Duration::from_millis(10)) {
                 info!("Received frame: {:?}", frame);
                 if let Err(e) = RESPONSE_SLOT.update_response(frame.data().to_vec()).await {
-                    error!("UDS: Failed to update response from UDS server: {}", e);
+                    error!("UDS: Failed to update response from UDS server: {:?}", e);
                 }
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
