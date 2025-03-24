@@ -1,9 +1,11 @@
 //!  Provides methods to reset the ECU that includes soft-reset, hard-reset, ...
 //!
 
-use crate::uds_client::{DiagError, PciByte, Response, UdsClient, response::UdsResponse};
+use crate::{
+    socket_can::CanSocketTx,
+    uds_client::{DiagError, PciByte, Response, UdsClient, response::UdsResponse},
+};
 use automotive_diag::uds::UdsCommand;
-use embedded_can::nb::Can;
 use log::info;
 
 /// Reset ECU subcommand
@@ -36,7 +38,7 @@ impl TryFrom<i32> for RealTimeType {
 }
 
 #[allow(dead_code)]
-impl<T: Can> UdsClient<'_, T> {
+impl<T: CanSocketTx> UdsClient<'_, T> {
     /// Service ID: 0x2A - Data Transmission
     ///     Sub-ID: 0x01
     /// Description:

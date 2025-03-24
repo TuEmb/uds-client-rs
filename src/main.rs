@@ -1,20 +1,20 @@
 #[cfg(target_os = "linux")]
 use embedded_can::Frame;
 use log::{error, info};
-use socket_can::UdsSocketRx;
-use uds::uds_client_task;
+use socket_can::{CanSocketRx, UdsSocketRx};
 use std::{
     sync::{Arc, LazyLock},
     time::Duration,
 };
 use tokio::sync::mpsc;
+use uds::uds_client_task;
 use uds_client::ResponseSlot;
 use ui::UiEventTx;
 
 mod socket_can;
+mod uds;
 mod uds_client;
 mod ui;
-mod uds;
 
 slint::include_modules!();
 pub static RESPONSE_SLOT: LazyLock<Arc<ResponseSlot>> =

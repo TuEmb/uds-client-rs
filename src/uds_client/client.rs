@@ -42,19 +42,21 @@
 //! ## Structs
 //! - [`UdsClient`] - The main client struct for handling UDS communication.
 
+use crate::socket_can::CanSocketTx;
+
 use super::{DiagError, Response, ResponseSlot, response::UdsResponse};
-use embedded_can::{ExtendedId, Frame, Id, nb::Can};
+use embedded_can::{ExtendedId, Frame, Id};
 use log::debug;
 use std::sync::{Arc, LazyLock};
 
-pub struct UdsClient<'a, T: Can> {
+pub struct UdsClient<'a, T: CanSocketTx> {
     channel: T,
     id: Id,
     resp: &'a Arc<ResponseSlot>,
 }
 
 #[allow(dead_code)]
-impl<'a, T: Can> UdsClient<'a, T> {
+impl<'a, T: CanSocketTx> UdsClient<'a, T> {
     pub fn new(channel: T, id: u32, resp: &'a LazyLock<Arc<ResponseSlot>>) -> Self {
         let id = Id::Extended(ExtendedId::new(id).unwrap());
         Self { channel, id, resp }

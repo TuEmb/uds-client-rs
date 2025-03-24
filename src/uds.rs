@@ -1,18 +1,22 @@
 use std::sync::Arc;
 
 use log::{info, warn};
-use tokio::sync::{mpsc::Receiver, Mutex};
+use tokio::sync::{Mutex, mpsc::Receiver};
 
-use crate::{socket_can::UdsSocketTx, uds_client::{RealTimeType, ResetType, UdsClient}, ui::UiEventTx, RESPONSE_SLOT};
+use crate::{
+    RESPONSE_SLOT,
+    socket_can::UdsSocketTx,
+    uds_client::{RealTimeType, ResetType, UdsClient},
+    ui::UiEventTx,
+};
 
 /// The UDS client task: receive and process the event from UI
-pub async fn uds_client_task(tx_socket: UdsSocketTx, mut uds_rx: Receiver<UiEventTx>) -> Result<(), ()> {
+pub async fn uds_client_task(
+    tx_socket: UdsSocketTx,
+    mut uds_rx: Receiver<UiEventTx>,
+) -> Result<(), ()> {
     tokio::spawn(async move {
-        let uds_client = Arc::new(Mutex::new(UdsClient::new(
-            tx_socket,
-            0x784,
-            &RESPONSE_SLOT,
-        )));
+        let uds_client = Arc::new(Mutex::new(UdsClient::new(tx_socket, 0x784, &RESPONSE_SLOT)));
         let file = tokio::fs::File::create("./log.bin").await.unwrap();
         let uds_client_clone_1 = Arc::clone(&uds_client);
 

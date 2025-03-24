@@ -1,4 +1,4 @@
-use embedded_can::{ExtendedId, nb::Can};
+use embedded_can::{ExtendedId, Frame, nb::Can};
 use embedded_io_async::ErrorType;
 #[cfg(target_os = "linux")]
 use socketcan::{CanFrame, CanSocket, Socket};
@@ -23,6 +23,31 @@ pub struct WrappedCanFrame(pub CanFrame);
 #[cfg(target_os = "windows")]
 #[derive(Debug)]
 pub struct WrappedPcanError(pub PcanError);
+
+pub trait CanSocketTx {
+    /// Associated frame type.
+    type Frame: Frame;
+
+    /// Associated error type.
+    type Error: embedded_can::Error;
+
+    // The transmit function
+    fn transmit(&mut self, frame: &Self::Frame) -> nb::Result<Option<Self::Frame>, Self::Error>;
+}
+
+pub trait CanSocketRx {
+    /// Associated frame type.
+    type Frame: Frame;
+
+    /// Associated error type.
+    type Error: embedded_can::Error;
+
+    // The receive function
+    fn receive(&mut self) -> nb::Result<Self::Frame, Self::Error>;
+
+    // The receive function with timeout
+    fn receive_with_timeout(&mut self, timeout: Duration) -> socketcan::IoResult<Self::Frame>;
+}
 
 pub struct UdsSocket {
     #[cfg(target_os = "linux")]
@@ -101,38 +126,25 @@ impl Can for UdsSocket {
 }
 
 #[cfg(target_os = "linux")]
-impl Can for UdsSocketTx {
+impl CanSocketTx for UdsSocketTx {
     type Frame = CanFrame;
-
     type Error = socketcan::Error;
 
     fn transmit(&mut self, frame: &Self::Frame) -> nb::Result<Option<Self::Frame>, Self::Error> {
         self.tx.lock().unwrap().transmit(frame)
     }
-
-    fn receive(&mut self) -> nb::Result<Self::Frame, Self::Error> {
-        self.tx.lock().unwrap().receive()
-    }
 }
 
 #[cfg(target_os = "linux")]
-impl Can for UdsSocketRx {
+impl CanSocketRx for UdsSocketRx {
     type Frame = CanFrame;
-
     type Error = socketcan::Error;
 
-    fn transmit(&mut self, frame: &Self::Frame) -> nb::Result<Option<Self::Frame>, Self::Error> {
-        self.rx.lock().unwrap().transmit(frame)
-    }
-
-    fn receive(&mut self) -> nb::Result<Self::Frame, Self::Error> {
+    fn receive(&mut self) -> nb::Result<CanFrame, socketcan::Error> {
         self.rx.lock().unwrap().receive()
     }
-}
 
-#[cfg(target_os = "linux")]
-impl UdsSocketRx {
-    pub fn receive_with_timeout(&mut self, timeout: Duration) -> socketcan::IoResult<CanFrame> {
+    fn receive_with_timeout(&mut self, timeout: Duration) -> socketcan::IoResult<CanFrame> {
         self.rx.lock().unwrap().read_frame_timeout(timeout)
     }
 }
