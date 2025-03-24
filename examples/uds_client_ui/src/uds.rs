@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use log::info;
 use tokio::sync::{Mutex, mpsc::Receiver};
-use uds_client_rs::{RealTimeType, ResetType, UdsClient, UdsSocketTx};
+use uds_client::{RealTimeType, ResetType, UdsClient, UdsSocketTx};
 
 use crate::{RESPONSE_SLOT, ui::UiEventTx};
 

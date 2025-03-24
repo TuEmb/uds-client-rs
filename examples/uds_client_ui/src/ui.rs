@@ -1,4 +1,4 @@
-use uds_client_rs::{RealTimeType, ResetType};
+use uds_client::{RealTimeType, ResetType};
 
 impl TryFrom<i32> for UiEventTx {
     type Error = ();

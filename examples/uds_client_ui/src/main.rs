@@ -7,7 +7,7 @@ use std::{
 };
 use tokio::sync::mpsc;
 use uds::uds_client_task;
-use uds_client_rs::{ResponseSlot, UdsSocket, UdsSocketRx};
+use uds_client::{ResponseSlot, UdsSocket, UdsSocketRx};
 use ui::UiEventTx;
 
 mod uds;
