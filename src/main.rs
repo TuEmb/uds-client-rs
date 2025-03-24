@@ -1,7 +1,7 @@
 #[cfg(target_os = "linux")]
 use embedded_can::Frame;
 use log::{error, info};
-use socket_can::{CanSocketRx, UdsSocketRx};
+use socket_can::UdsSocketRx;
 use std::{
     sync::{Arc, LazyLock},
     time::Duration,
@@ -28,7 +28,7 @@ async fn main() {
     #[cfg(target_os = "linux")]
     let (tx_socket, rx_socket) = socket_can::UdsSocket::new("can0").split();
     #[cfg(target_os = "windows")]
-    let (tx_socket, mut rx_socket) = socket_can::UdsSocket::new().split();
+    let (tx_socket, rx_socket) = socket_can::UdsSocket::new().split();
     let (ui_tx, uds_rx) = mpsc::channel::<UiEventTx>(10);
 
     let ui = MainWindow::new().unwrap();

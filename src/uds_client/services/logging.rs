@@ -10,7 +10,7 @@ impl<T: CanSocketTx> UdsClient<'_, T> {
     /// Description:
     ///     The function will request a data transfer from ECU.
     ///     The data will store in the <file> as raw binary
-    pub async fn get_ecu_log(&mut self, mut file: File) -> Result<(), DiagError> {
+    pub async fn get_ecu_log(&mut self, mut _file: File) -> Result<(), DiagError> {
         todo!()
     }
 }
