@@ -3,10 +3,10 @@ use embedded_can::ExtendedId;
 use embedded_can::{Frame, nb::Can};
 use embedded_io_async::ErrorType;
 #[cfg(target_os = "windows")]
-use pcan_basic::{
+use peak_can::{
     bus::UsbBus,
     df::ReceiveStatus,
-    error::PcanError,
+    error::CanError,
     socket::usb::UsbCanSocket,
     socket::{Baudrate, RecvCan, SendCan},
     socket::{CanFrame, MessageType},
@@ -23,7 +23,7 @@ use std::{
 pub struct WrappedCanFrame(pub CanFrame);
 #[cfg(target_os = "windows")]
 #[derive(Debug)]
-pub struct WrappedPcanError(pub PcanError);
+pub struct WrappedPcanError(pub CanError);
 
 pub trait CanSocketTx {
     /// Associated frame type.
@@ -155,7 +155,7 @@ impl UdsSocketRx {
 impl embedded_can::Error for WrappedPcanError {
     fn kind(&self) -> embedded_can::ErrorKind {
         match self.0 {
-            PcanError::Overrun => embedded_can::ErrorKind::Overrun,
+            CanError::Overrun => embedded_can::ErrorKind::Overrun,
             _ => embedded_can::ErrorKind::Other,
         }
     }
@@ -261,11 +261,11 @@ impl CanSocketRx for UdsSocketRx {
 
 #[cfg(target_os = "windows")]
 impl UdsSocketRx {
-    pub fn receive_with_timeout(&mut self, timeout: Duration) -> Result<CanFrame, PcanError> {
+    pub fn receive_with_timeout(&mut self, timeout: Duration) -> Result<CanFrame, CanError> {
         let start = chrono::Local::now();
         while !self.rx.lock().unwrap().is_receiving()? {
             if chrono::Local::now() > start + timeout {
-                return Err(PcanError::Unknown);
+                return Err(CanError::Unknown);
             }
         }
 
