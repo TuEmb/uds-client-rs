@@ -1,19 +1,14 @@
 use std::{cell::RefCell, time::Duration};
 use tokio::sync::{Mutex, Notify};
 
-use super::DiagError;
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum UdsResponse {
-    Single(u8, u8, u8),              // (SID, SubID, Ident)
-    First(u16, u8, u8, u8, Vec<u8>), // (Size, DID, SubID, Ident, Data)
-    Consecutive(u8, Vec<u8>),        // (Index, Data)
-    FlowControl,                     // Not valid response
-}
+use super::{
+    DiagError,
+    frame::{FrameError, UdsFrame},
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Response {
-    Ok(UdsResponse),
+    Ok(UdsFrame),
     Error,
 }
 
@@ -56,40 +51,10 @@ impl ResponseSlot {
     }
 
     /// Update the response data into response slot and raise a notification.
-    pub async fn update_response(&self, new_data: Vec<u8>) -> Result<(), DiagError> {
-        let res = self.process_response(new_data)?;
+    pub async fn update_response(&self, new_data: Vec<u8>) -> Result<(), FrameError> {
+        let res = UdsFrame::from_vec(new_data)?;
         self.0.lock().await.replace(Response::Ok(res)); // Lock and modify data
         self.1.notify_one(); // Notify the waiting thread
         Ok(())
-    }
-
-    fn process_response(&self, res: Vec<u8>) -> Result<UdsResponse, DiagError> {
-        match res[0] & 0xF0 {
-            0x00 => {
-                // Single frame
-                Ok(UdsResponse::Single(res[1], res[2], res[3]))
-            }
-            0x10 => {
-                let size = (((res[0] & 0x0f) as u16) << 8) + res[1] as u16;
-                // First frame
-                Ok(UdsResponse::First(
-                    size,
-                    res[2],
-                    res[3],
-                    res[4],
-                    res[5..].to_vec(),
-                ))
-            }
-            0x20 => {
-                // Consecutive
-                let idx = res[0] & 0x0F;
-                Ok(UdsResponse::Consecutive(idx, res[1..].to_vec()))
-            }
-            0x30 => {
-                // Flow control frame
-                Ok(UdsResponse::FlowControl)
-            }
-            _ => Err(DiagError::NotSupported),
-        }
     }
 }

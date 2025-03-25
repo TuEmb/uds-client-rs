@@ -1,4 +1,5 @@
 mod client;
+mod frame;
 mod pci;
 mod response;
 mod services;

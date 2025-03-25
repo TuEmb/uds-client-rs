@@ -46,7 +46,6 @@
 //! ## License
 //! This project is licensed under the MIT License.
 
-
 mod socket_can;
 mod uds_client;
 

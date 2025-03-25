@@ -3,10 +3,12 @@
 
 use crate::{
     socket_can::CanSocketTx,
-    uds_client::{DiagError, PciByte, Response, UdsClient, response::UdsResponse},
+    uds_client::{
+        DiagError, PciByte, Response, UdsClient,
+        frame::{UdsFlowControlFrame, UdsFrame},
+    },
 };
 use automotive_diag::uds::UdsCommand;
-use log::info;
 
 /// Reset ECU subcommand
 #[repr(u8)]
@@ -110,35 +112,28 @@ impl<T: CanSocketTx> UdsClient<'_, T> {
     }
 
     /// Process the realtime data transfer from ECU
-    async fn real_time_data_process(&mut self, response: UdsResponse) -> Result<(), DiagError> {
+    async fn real_time_data_process(&mut self, response: UdsFrame) -> Result<(), DiagError> {
         let mut remain;
-        if let UdsResponse::First(size, did, sub_id, iden, data) = response {
-            let pci_byte = PciByte::new(crate::uds_client::PciType::FlowControl, 0);
-            self.send_command(pci_byte, 0x00, &[0x00])?;
-            info!(
-                "UDS received first frame: \n\t\tsize {:02X}\t\tdid {:02X}\t\tsub_id {:02X}\t\tident: {:02X}\t\tdata {:?}",
-                size, did, sub_id, iden, data
-            );
-            remain = size as usize - data.len();
+        if let UdsFrame::First(frame) = response {
+            let flow_ctrl = UdsFlowControlFrame::new(0x00, 0x00, 0x7F, Vec::new()).unwrap();
+            self.send_frame(UdsFrame::FlowControl(flow_ctrl))?;
+
+            remain = frame.size as usize - frame.payload.len();
             let mut pre_idx = 0;
             while let Response::Ok(uds_frame) = self.receive().await {
                 match uds_frame {
-                    UdsResponse::Consecutive(idx, uds_data) => {
-                        remain -= uds_data.len();
-                        if idx != if pre_idx == 15 { 0 } else { pre_idx + 1 } {
+                    UdsFrame::Consecutive(frame) => {
+                        remain -= frame.payload.len();
+                        if frame.seq_num != if pre_idx == 15 { 0 } else { pre_idx + 1 } {
                             return Err(DiagError::InvalidResponseLength);
                         }
-                        pre_idx = idx;
-                        info!("UDS received: {}, data: {:?}", idx, uds_data);
+                        pre_idx = frame.seq_num;
                     }
-                    UdsResponse::First(size, did, sub_id, iden, data) => {
-                        info!(
-                            "UDS received first frame: \n\t\tsize {:02X}\t\tdid {:02X}\t\tsub_id {:02X}\t\tident: {:02X}\t\tdata {:?}",
-                            size, did, sub_id, iden, data
-                        );
-                        let pci_byte = PciByte::new(crate::uds_client::PciType::FlowControl, 0);
-                        self.send_command(pci_byte, 0x00, &[0x00])?;
-                        remain = size as usize - data.len();
+                    UdsFrame::First(frame) => {
+                        let flow_ctrl =
+                            UdsFlowControlFrame::new(0x00, 0x00, 0x7F, Vec::new()).unwrap();
+                        self.send_frame(UdsFrame::FlowControl(flow_ctrl))?;
+                        remain = frame.size as usize - frame.payload.len();
                         pre_idx = 0;
                     }
                     _ => {}

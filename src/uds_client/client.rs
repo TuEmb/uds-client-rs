@@ -44,7 +44,7 @@
 
 use crate::socket_can::CanSocketTx;
 
-use super::{DiagError, Response, ResponseSlot, response::UdsResponse};
+use super::{DiagError, Response, ResponseSlot, frame::UdsFrame};
 use embedded_can::{ExtendedId, Frame, Id};
 use log::debug;
 use std::sync::{Arc, LazyLock};
@@ -75,6 +75,33 @@ impl<'a, T: CanSocketTx> UdsClient<'a, T> {
         self.send_raw(&data)
     }
 
+    /// Send an UDS frame without the response.
+    pub fn send_frame(&mut self, frame: UdsFrame) -> Result<(), DiagError> {
+        if let Ok(data) = frame.to_vec() {
+            self.send_raw(&data)
+        } else {
+            Err(DiagError::WrongMessage)
+        }
+    }
+
+    /// Send an UDS frame without the response.
+    pub async fn send_frame_with_response(
+        &mut self,
+        frame: UdsFrame,
+    ) -> Result<UdsFrame, DiagError> {
+        if let Ok(data) = frame.to_vec() {
+            match self.send_raw_with_response(&data).await? {
+                Response::Ok(items) => {
+                    debug!("got response: {:?}", items);
+                    Ok(items)
+                }
+                Response::Error => Err(DiagError::Timeout),
+            }
+        } else {
+            Err(DiagError::WrongMessage)
+        }
+    }
+
     /// Send a command with the response.
     /// The frame includes <PCI> <CMD> <ARGS> as ISO 15765-2
     pub async fn send_command_with_response<P: Into<u8>, M: Into<u8>>(
@@ -82,7 +109,7 @@ impl<'a, T: CanSocketTx> UdsClient<'a, T> {
         pci: P,
         cmd: M,
         args: &[u8],
-    ) -> Result<UdsResponse, DiagError> {
+    ) -> Result<UdsFrame, DiagError> {
         let mut data = vec![pci.into(), cmd.into()];
         data.extend_from_slice(args);
         match self.send_raw_with_response(&data).await? {
