@@ -3,62 +3,26 @@ import { Button, VerticalBox } from "std-widgets.slint";
 component MainWindow inherits Window {
     title: "DiagXpert";
     in-out property <bool> is_start: false;
+    width: 300px;
     callback reset(int);
     HorizontalLayout {
         VerticalBox {
             Button {
-                text: is_start?"stop":"start";
+                text: "ECU Reset";
                 clicked => {
-                    reset(is_start?4:3);
-                    is_start = !is_start;
+                    reset(1);
                 }
             }
             Button {
-                text: "reset 118";
+                text: "Security Access";
                 clicked => {
-                    reset(64);
+                    reset(2);
                 }
             }
             Button {
-                text: "reset 148";
+                text: "Communication Control";
                 clicked => {
-                    reset(65);
-                }
-            }
-            Button {
-                text: "reset imx";
-                clicked => {
-                    reset(66);
-                }
-            }
-            Button {
-                text: "reset esp-wifi";
-                clicked => {
-                    reset(67);
-                }
-            }
-            Button {
-                text: "reset esp-ble";
-                clicked => {
-                    reset(68);
-                }
-            }
-            Button {
-                text: "reset lte";
-                clicked => {
-                    reset(69);
-                }
-            }
-            Button {
-                text: "reset lizard";
-                clicked => {
-                    reset(70);
-                }
-            }
-            Button {
-                text: "reset cendric";
-                clicked => {
-                    reset(71);
+                    reset(3);
                 }
             }
         }

@@ -9,6 +9,7 @@ tokio = { version = "1.44.0", features = ["full"] }
 embedded-can = "0.4.1"
 log = "0.4.26"
 env_logger = "0.11.7"
+automotive_diag = "0.1.11"
 uds-client = {path = "../.."}
 
 [build-dependencies]

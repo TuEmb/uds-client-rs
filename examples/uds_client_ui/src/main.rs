@@ -1,16 +1,17 @@
+use automotive_diag::uds::UdsCommand;
 #[cfg(target_os = "linux")]
 use embedded_can::Frame;
 use log::{error, info};
+use services::UdsClientService;
 use std::{
     sync::{Arc, LazyLock},
     time::Duration,
 };
-use tokio::sync::mpsc;
-use uds::uds_client_task;
-use uds_client::{ResponseSlot, UdsSocket, UdsSocketRx};
+use tokio::sync::mpsc::{self, Receiver};
+use uds_client::{ResponseSlot, UdsClient, UdsSocket, UdsSocketRx, UdsSocketTx};
 use ui::UiEventTx;
 
-mod uds;
+mod services;
 mod ui;
 
 slint::include_modules!();
@@ -42,6 +43,25 @@ async fn main() {
 
     // start UI
     let _ = ui.run();
+}
+
+/// The UDS client task: receive and process the event from UI
+pub async fn uds_client_task(
+    tx_socket: UdsSocketTx,
+    mut uds_rx: Receiver<UiEventTx>,
+) -> Result<(), ()> {
+    tokio::spawn(async move {
+        let mut uds_client = UdsClient::new(tx_socket, 0x784, &RESPONSE_SLOT);
+        while let Some(event) = uds_rx.recv().await {
+            match event {
+                UiEventTx::EcuReset => uds_client.run_service(UdsCommand::ECUReset).await,
+                UiEventTx::CommunicationControl => uds_client.run_service(UdsCommand::CommunicationControl).await,
+                UiEventTx::SecurityAccess => uds_client.run_service(UdsCommand::SecurityAccess).await,
+            }
+        }
+    });
+
+    Ok(())
 }
 
 /// The response task: handle Rx UDS socket and update to RESPONSE_SLOT
