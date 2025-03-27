@@ -19,7 +19,7 @@ use std::{
 };
 
 #[cfg(target_os = "windows")]
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct WrappedCanFrame(pub CanFrame);
 #[cfg(target_os = "windows")]
 #[derive(Debug)]
