@@ -64,7 +64,7 @@ impl<'a, T: CanSocketTx> UdsClient<'a, T> {
 
     /// Send a command without the response.
     /// The frame includes <PCI> <CMD> <ARGS> as ISO 15765-2
-    pub fn send_command<P: Into<u8>, M: Into<u8>>(
+    pub async fn send_command<P: Into<u8>, M: Into<u8>>(
         &mut self,
         pci: P,
         cmd: M,
@@ -72,13 +72,13 @@ impl<'a, T: CanSocketTx> UdsClient<'a, T> {
     ) -> Result<(), DiagError> {
         let mut data = vec![pci.into(), cmd.into()];
         data.extend_from_slice(args);
-        self.send_raw(&data)
+        self.send_raw(&data).await
     }
 
     /// Send an UDS frame without the response.
-    pub fn send_frame(&mut self, frame: UdsFrame) -> Result<(), DiagError> {
+    pub async fn send_frame(&mut self, frame: UdsFrame) -> Result<(), DiagError> {
         if let Ok(data) = frame.to_vec() {
-            self.send_raw(&data)
+            self.send_raw(&data).await
         } else {
             Err(DiagError::WrongMessage)
         }
@@ -122,17 +122,17 @@ impl<'a, T: CanSocketTx> UdsClient<'a, T> {
     }
 
     /// Internal function: send raw data as bytes array to CAN bus.
-    fn send_raw(&mut self, data: &[u8]) -> Result<(), DiagError> {
+    async fn send_raw(&mut self, data: &[u8]) -> Result<(), DiagError> {
         let frame = T::Frame::new(self.id, data).unwrap();
         println!("send raw data frame: {:?}", frame.data());
-        self.channel.transmit(&frame).unwrap();
+        self.channel.transmit(&frame).await.unwrap();
         Ok(())
     }
 
     /// Internal function: send raw data as bytes array to CAN bus and wait for a response.
     async fn send_raw_with_response(&mut self, data: &[u8]) -> Result<Response, DiagError> {
         let frame = T::Frame::new(self.id, data).unwrap();
-        self.channel.transmit(&frame).unwrap();
+        self.channel.transmit(&frame).await.unwrap();
         let response = self.resp.wait_for_response().await;
         Ok(response)
     }

@@ -116,7 +116,7 @@ impl<T: CanSocketTx> UdsClient<'_, T> {
         let mut remain;
         if let UdsFrame::First(frame) = response {
             let flow_ctrl = UdsFlowControlFrame::new(0x00, 0x00, 0x7F, Vec::new()).unwrap();
-            self.send_frame(UdsFrame::FlowControl(flow_ctrl))?;
+            self.send_frame(UdsFrame::FlowControl(flow_ctrl)).await?;
 
             remain = frame.size as usize - frame.payload.len();
             let mut pre_idx = 0;
@@ -132,7 +132,7 @@ impl<T: CanSocketTx> UdsClient<'_, T> {
                     UdsFrame::First(frame) => {
                         let flow_ctrl =
                             UdsFlowControlFrame::new(0x00, 0x00, 0x7F, Vec::new()).unwrap();
-                        self.send_frame(UdsFrame::FlowControl(flow_ctrl))?;
+                        self.send_frame(UdsFrame::FlowControl(flow_ctrl)).await?;
                         remain = frame.size as usize - frame.payload.len();
                         pre_idx = 0;
                     }

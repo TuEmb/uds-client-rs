@@ -33,7 +33,10 @@ pub trait CanSocketTx {
     type Error: embedded_can::Error;
 
     // The transmit function
-    fn transmit(&mut self, frame: &Self::Frame) -> nb::Result<Option<Self::Frame>, Self::Error>;
+    fn transmit(
+        &mut self,
+        frame: &Self::Frame,
+    ) -> impl std::future::Future<Output = nb::Result<Option<Self::Frame>, Self::Error>> + Send;
 }
 
 #[allow(dead_code)]
@@ -45,7 +48,9 @@ pub trait CanSocketRx {
     type Error: embedded_can::Error;
 
     // The receive function
-    fn receive(&mut self) -> nb::Result<Self::Frame, Self::Error>;
+    fn receive(
+        &mut self,
+    ) -> impl std::future::Future<Output = nb::Result<Self::Frame, Self::Error>>;
 }
 
 pub struct UdsSocket {
@@ -129,7 +134,10 @@ impl CanSocketTx for UdsSocketTx {
     type Frame = CanFrame;
     type Error = socketcan::Error;
 
-    fn transmit(&mut self, frame: &Self::Frame) -> nb::Result<Option<Self::Frame>, Self::Error> {
+    async fn transmit(
+        &mut self,
+        frame: &Self::Frame,
+    ) -> nb::Result<Option<Self::Frame>, Self::Error> {
         self.tx.lock().unwrap().transmit(frame)
     }
 }
@@ -139,7 +147,7 @@ impl CanSocketRx for UdsSocketRx {
     type Frame = CanFrame;
     type Error = socketcan::Error;
 
-    fn receive(&mut self) -> nb::Result<CanFrame, socketcan::Error> {
+    async fn receive(&mut self) -> nb::Result<CanFrame, socketcan::Error> {
         self.rx.lock().unwrap().receive()
     }
 }
@@ -237,7 +245,10 @@ impl CanSocketTx for UdsSocketTx {
 
     type Error = WrappedPcanError;
 
-    fn transmit(&mut self, frame: &Self::Frame) -> nb::Result<Option<Self::Frame>, Self::Error> {
+    async fn transmit(
+        &mut self,
+        frame: &Self::Frame,
+    ) -> nb::Result<Option<Self::Frame>, Self::Error> {
         match self.tx.lock().unwrap().send(frame.0) {
             Ok(_) => Ok(Some(Self::Frame::default())),
             Err(e) => Err(nb::Error::Other(WrappedPcanError(e))),
@@ -251,7 +262,7 @@ impl CanSocketRx for UdsSocketRx {
 
     type Error = WrappedPcanError;
 
-    fn receive(&mut self) -> nb::Result<Self::Frame, Self::Error> {
+    async fn receive(&mut self) -> nb::Result<Self::Frame, Self::Error> {
         match self.rx.lock().unwrap().recv() {
             Ok(f) => Ok(WrappedCanFrame(f.0)),
             Err(e) => Err(nb::Error::Other(WrappedPcanError(e))),
