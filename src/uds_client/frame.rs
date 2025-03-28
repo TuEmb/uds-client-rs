@@ -167,13 +167,13 @@ impl UdsSingleFrame {
 }
 
 impl UdsFirstFrame {
-    pub fn new(sid: u8, did: Option<u16>, payload: Vec<u8>) -> Result<Self, FrameError> {
+    pub fn new(sid: u8, size: u16, did: Option<u16>, payload: Vec<u8>) -> Result<Self, FrameError> {
         if payload.len() > 6 {
             return Err(FrameError::InvalidCanLength);
         }
 
         Ok(Self {
-            size: payload.len() as u16 + 1, // Because FirstFrame also needs size info
+            size,
             sid,
             did,
             payload,
