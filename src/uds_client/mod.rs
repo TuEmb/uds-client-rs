@@ -5,9 +5,10 @@ mod response;
 mod services;
 
 pub use client::UdsClient;
+pub use frame::*;
 pub use pci::{PciByte, PciType};
 pub use response::{Response, ResponseSlot};
-pub use services::{RealTimeType, ResetType};
+pub use services::RealTimeType;
 
 #[derive(Clone, Debug)]
 /// Diagnostic server error
