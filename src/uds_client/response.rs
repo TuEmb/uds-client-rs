@@ -6,10 +6,10 @@ use super::{
     frame::{FrameError, UdsFrame},
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Response {
     Ok(UdsFrame),
-    Error,
+    Error(DiagError),
 }
 
 /// The response slot for each UDS request
@@ -27,7 +27,10 @@ impl ResponseSlot {
 
     /// Create new response slot.
     pub fn new() -> Self {
-        Self(Mutex::new(RefCell::new(Response::Error)), Notify::new())
+        Self(
+            Mutex::new(RefCell::new(Response::Error(DiagError::NotSupported))),
+            Notify::new(),
+        )
     }
 
     /// Get a response with blocking forever method.
@@ -45,7 +48,7 @@ impl ResponseSlot {
                 data.borrow().clone()
             }
             _ = tokio::time::sleep(Duration::from_millis(Self::TIMEOUT)) => {
-                Response::Error
+                Response::Error(DiagError::Timeout)
             }
         }
     }

@@ -95,7 +95,7 @@ impl<'a, T: CanSocketTx> UdsClient<'a, T> {
                     debug!("got response: {:?}", items);
                     Ok(items)
                 }
-                Response::Error => Err(DiagError::Timeout),
+                Response::Error(e) => Err(e),
             }
         } else {
             Err(DiagError::WrongMessage)
@@ -117,7 +117,7 @@ impl<'a, T: CanSocketTx> UdsClient<'a, T> {
                 debug!("got response: {:?}", items);
                 Ok(items)
             }
-            Response::Error => Err(DiagError::Timeout),
+            Response::Error(e) => Err(e),
         }
     }
 

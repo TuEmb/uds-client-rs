@@ -12,15 +12,62 @@ pub enum UdsFrame {
     First(UdsFirstFrame),
     Consecutive(UdsConsecutiveFrame),
     FlowControl(UdsFlowControlFrame),
+    NegativeResp(UdsNegativeResponse),
 }
 
 impl UdsFrame {
+    // verify if the frame is negative response frame.
+    pub fn is_negative_frame(&self) -> bool {
+        if let UdsFrame::NegativeResp(_frame) = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    // verify if the frame is single frame.
+    pub fn is_single_frame(&self) -> bool {
+        if let UdsFrame::Single(_frame) = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    // verify if the frame is first frame.
+    pub fn is_first_frame(&self) -> bool {
+        if let UdsFrame::First(_frame) = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    // verify if the frame is consecutive frame.
+    pub fn is_consecutive_frame(&self) -> bool {
+        if let UdsFrame::Consecutive(_frame) = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    // verify if the frame is flow control frame.
+    pub fn is_flow_control_frame(&self) -> bool {
+        if let UdsFrame::FlowControl(_frame) = self {
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn to_vec(&self) -> Result<Vec<u8>, FrameError> {
         match self {
             UdsFrame::Single(uds_single_frame) => uds_single_frame.to_vec(),
             UdsFrame::First(uds_first_frame) => uds_first_frame.to_vec(),
             UdsFrame::Consecutive(uds_consecutive_frame) => uds_consecutive_frame.to_vec(),
             UdsFrame::FlowControl(uds_flow_control_frame) => uds_flow_control_frame.to_vec(),
+            UdsFrame::NegativeResp(uds_negative_response) => Ok(uds_negative_response.to_vec()),
         }
     }
 
@@ -39,18 +86,26 @@ impl UdsFrame {
                 }
                 let size = data[0] & 0x0F;
                 let sid = data[1];
-                let did = if data.len() > 2 {
-                    Some(((data[2] as u16) << 8) | data[3] as u16)
+                if sid == 0x7F {
+                    Ok(UdsFrame::NegativeResp(UdsNegativeResponse {
+                        size,
+                        rsid: data[2],
+                        nrc: data[3],
+                    }))
                 } else {
-                    None
-                };
-                let payload = data[2..].to_vec();
-                Ok(UdsFrame::Single(UdsSingleFrame {
-                    size,
-                    sid,
-                    did,
-                    payload,
-                }))
+                    let did = if data.len() > 2 {
+                        Some(((data[2] as u16) << 8) | data[3] as u16)
+                    } else {
+                        None
+                    };
+                    let payload = data[2..].to_vec();
+                    Ok(UdsFrame::Single(UdsSingleFrame {
+                        size,
+                        sid,
+                        did,
+                        payload,
+                    }))
+                }
             }
             0x1 => {
                 // First Frame
@@ -106,6 +161,13 @@ impl UdsFrame {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct UdsNegativeResponse {
+    pub size: u8, // Size of payload (4 bits, max 7)
+    pub rsid: u8, // Service Identifier (SID)
+    pub nrc: u8,  // Negative Response Code (NRC)
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct UdsSingleFrame {
     pub size: u8,         // Size of payload (4 bits, max 7)
     pub sid: u8,          // Service Identifier (SID)
@@ -133,6 +195,26 @@ pub struct UdsFlowControlFrame {
     pub block_size: u8,      // Number of Consecutive Frames to send before next FC
     pub separation_time: u8, // Delay between frames in milliseconds
     pub padding: Vec<u8>,
+}
+
+impl UdsNegativeResponse {
+    pub fn new(sid: u8, nrc: u8, size: u8) -> Self {
+        Self {
+            size,
+            rsid: sid,
+            nrc,
+        }
+    }
+
+    pub fn to_vec(&self) -> Vec<u8> {
+        let mut frame = Vec::new();
+        frame.push(self.size & 0x0F); // PCI byte (first nibble is 0 for Single Frame)
+        frame.push(0x7F); // Regative Response SID
+        frame.push(self.rsid); // Rejected SID
+        frame.push(self.nrc); // Negative Response Code (NRC)
+
+        frame
+    }
 }
 
 impl UdsSingleFrame {
