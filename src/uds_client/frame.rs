@@ -223,8 +223,14 @@ impl UdsSingleFrame {
             return Err(FrameError::InvalidCanLength);
         }
 
+        let size = if did.is_some() {
+            payload.len() + 3
+        } else {
+            payload.len() + 1
+        } as u8;
+
         Ok(Self {
-            size: payload.len() as u8,
+            size,
             sid,
             did,
             payload,
