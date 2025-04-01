@@ -61,7 +61,9 @@ impl fmt::Display for DiagError {
             DiagError::EmptyResponse => write!(f, "Response was empty"),
             DiagError::WrongMessage => write!(f, "ECU responded with an unrelated message"),
             DiagError::ServerNotRunning => write!(f, "Diagnostic server is not running"),
-            DiagError::InvalidResponseLength => write!(f, "ECU responded with an incorrect message length"),
+            DiagError::InvalidResponseLength => {
+                write!(f, "ECU responded with an incorrect message length")
+            }
             DiagError::ParameterInvalid => write!(f, "Invalid parameter passed to function"),
             DiagError::ChannelError => write!(f, "Error in the communication channel"),
             DiagError::HardwareError => write!(f, "Hardware error detected"),
