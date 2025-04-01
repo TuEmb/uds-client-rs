@@ -1,11 +1,42 @@
+use automotive_diag::uds::{UdsCommand, UdsError};
+
+/// Represents errors that can occur while processing UDS frames.
 #[derive(Debug)]
 pub enum FrameError {
+    /// The frame type is not recognized.
     InvalidFrameType,
+    /// The frame size is invalid or too small.
     InvalidSize,
+    /// The Service Identifier (SID) is invalid.
+    InvalidSid,
+    /// The Negative Response Code (NRC) is invalid.
+    InvalidNrc,
+    /// The CAN message length is invalid.
     InvalidCanLength,
+    /// Other unspecified errors.
     Others,
 }
 
+impl std::fmt::Display for FrameError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let msg = match self {
+            FrameError::InvalidFrameType => "Invalid UDS frame type.",
+            FrameError::InvalidSize => "Frame size is incorrect.",
+            FrameError::InvalidSid => "Invalid Service Identifier (SID).",
+            FrameError::InvalidNrc => "Invalid Negative Response Code (NRC).",
+            FrameError::InvalidCanLength => "Invalid CAN message length.",
+            FrameError::Others => "An unknown error occurred.",
+        };
+        write!(f, "{}", msg)
+    }
+}
+
+/// UDS frame types:
+///     - Single Frame (SF)
+///     - First Frame (FF)
+///     - Consecutive Frame (CF)
+///     - Flow Control Frame (FC)
+///     - Negative Response Frame (NRC)
 #[derive(Debug, Clone, PartialEq)]
 pub enum UdsFrame {
     Single(UdsSingleFrame),
@@ -16,49 +47,29 @@ pub enum UdsFrame {
 }
 
 impl UdsFrame {
-    // verify if the frame is negative response frame.
+    /// verify if the frame is negative response frame.
     pub fn is_negative_frame(&self) -> bool {
-        if let UdsFrame::NegativeResp(_frame) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, UdsFrame::NegativeResp(_frame))
     }
 
-    // verify if the frame is single frame.
+    /// verify if the frame is single frame.
     pub fn is_single_frame(&self) -> bool {
-        if let UdsFrame::Single(_frame) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, UdsFrame::Single(_frame))
     }
 
-    // verify if the frame is first frame.
+    /// verify if the frame is first frame.
     pub fn is_first_frame(&self) -> bool {
-        if let UdsFrame::First(_frame) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, UdsFrame::First(_frame))
     }
 
-    // verify if the frame is consecutive frame.
+    /// verify if the frame is consecutive frame.
     pub fn is_consecutive_frame(&self) -> bool {
-        if let UdsFrame::Consecutive(_frame) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, UdsFrame::Consecutive(_frame))
     }
 
-    // verify if the frame is flow control frame.
+    /// verify if the frame is flow control frame.
     pub fn is_flow_control_frame(&self) -> bool {
-        if let UdsFrame::FlowControl(_frame) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, UdsFrame::FlowControl(_frame))
     }
 
     pub fn to_vec(&self) -> Result<Vec<u8>, FrameError> {
@@ -72,54 +83,57 @@ impl UdsFrame {
     }
 
     pub fn from_vec(data: Vec<u8>) -> Result<Self, FrameError> {
-        if data.is_empty() {
-            return Err(FrameError::InvalidCanLength);
-        }
-
-        let frame_type = data[0] >> 4; // First 4 bits determine the frame type
+        let frame_type = data
+            .first()
+            .map(|b| b >> 4)
+            .ok_or(FrameError::InvalidCanLength)?;
 
         match frame_type {
             0x0 => {
                 // Single Frame
-                if data.len() < 2 {
-                    return Err(FrameError::InvalidSize);
-                }
                 let size = data[0] & 0x0F;
-                let sid = data[1];
+                let sid = *data.get(1).ok_or(FrameError::InvalidSize)?;
+
                 if sid == 0x7F {
-                    Ok(UdsFrame::NegativeResp(UdsNegativeResponse {
+                    let rsid = UdsCommand::from_repr(*data.get(2).ok_or(FrameError::InvalidSid)?)
+                        .ok_or(FrameError::InvalidSid)?;
+                    let nrc = UdsError::from_repr(*data.get(3).ok_or(FrameError::InvalidNrc)?)
+                        .ok_or(FrameError::InvalidNrc)?;
+                    return Ok(UdsFrame::NegativeResp(UdsNegativeResponse {
                         size,
-                        rsid: data[2],
-                        nrc: data[3],
-                    }))
-                } else {
-                    let did = if data.len() > 2 {
-                        Some(((data[2] as u16) << 8) | data[3] as u16)
-                    } else {
-                        None
-                    };
-                    let payload = data[2..].to_vec();
-                    Ok(UdsFrame::Single(UdsSingleFrame {
-                        size,
-                        sid,
-                        did,
-                        payload,
-                    }))
+                        rsid,
+                        nrc,
+                    }));
                 }
-            }
-            0x1 => {
-                // First Frame
-                if data.len() < 3 {
-                    return Err(FrameError::InvalidSize);
-                }
-                let size = (((data[0] & 0x0F) as u16) << 8) | data[1] as u16;
-                let sid = data[2];
-                let did = if data.len() > 3 {
-                    Some(((data[3] as u16) << 8) | data[4] as u16)
+
+                let did = if data.len() > 2 {
+                    Some(u16::from_be_bytes([data[2], *data.get(3).unwrap_or(&0)]))
                 } else {
                     None
                 };
-                let payload = data[3..].to_vec();
+
+                let payload_start = if did.is_some() { 4 } else { 2 };
+                let payload = data.get(payload_start..).unwrap_or(&[]).to_vec();
+
+                Ok(UdsFrame::Single(UdsSingleFrame {
+                    size,
+                    sid,
+                    did,
+                    payload,
+                }))
+            }
+            0x1 => {
+                // First Frame
+                let size = (((data[0] & 0x0F) as u16) << 8)
+                    | (*data.get(1).ok_or(FrameError::InvalidSize)? as u16);
+                let sid = *data.get(2).ok_or(FrameError::InvalidSize)?;
+
+                let did = data
+                    .get(3..5)
+                    .map(|bytes| u16::from_be_bytes([bytes[0], bytes[1]]));
+                let payload_start = if did.is_some() { 5 } else { 3 };
+                let payload = data.get(payload_start..).unwrap_or(&[]).to_vec();
+
                 Ok(UdsFrame::First(UdsFirstFrame {
                     size,
                     sid,
@@ -129,11 +143,8 @@ impl UdsFrame {
             }
             0x2 => {
                 // Consecutive Frame
-                if data.len() < 2 {
-                    return Err(FrameError::InvalidSize);
-                }
                 let seq_num = data[0] & 0x0F;
-                let payload = data[1..].to_vec();
+                let payload = data.get(1..).unwrap_or(&[]).to_vec();
                 Ok(UdsFrame::Consecutive(UdsConsecutiveFrame {
                     seq_num,
                     payload,
@@ -141,13 +152,12 @@ impl UdsFrame {
             }
             0x3 => {
                 // Flow Control Frame
-                if data.len() < 3 {
-                    return Err(FrameError::InvalidSize);
-                }
-                let flag = data[0] & 0x0F;
-                let block_size = data[1];
-                let separation_time = data[2];
-                let padding = data[3..].to_vec();
+                let (flag, block_size, separation_time) = (
+                    data[0] & 0x0F,
+                    *data.get(1).ok_or(FrameError::InvalidSize)?,
+                    *data.get(2).ok_or(FrameError::InvalidSize)?,
+                );
+                let padding = data.get(3..).unwrap_or(&[]).to_vec();
                 Ok(UdsFrame::FlowControl(UdsFlowControlFrame {
                     flag,
                     block_size,
@@ -160,64 +170,108 @@ impl UdsFrame {
     }
 }
 
+/// Represents a UDS Negative Response frame.
+/// This frame is sent by the ECU when a UDS request fails.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UdsNegativeResponse {
-    pub size: u8, // Size of payload (4 bits, max 7)
-    pub rsid: u8, // Service Identifier (SID)
-    pub nrc: u8,  // Negative Response Code (NRC)
+    /// Size of the payload (only 4 bits are used, max value is 7).
+    pub size: u8,
+    /// Service Identifier (SID) that caused the negative response.
+    pub rsid: UdsCommand,
+    /// Negative Response Code (NRC) indicating the reason for failure.
+    pub nrc: UdsError,
 }
 
+/// Represents a UDS Single Frame.
+/// This frame is used when the total payload fits within a single CAN frame.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UdsSingleFrame {
-    pub size: u8,         // Size of payload (4 bits, max 7)
-    pub sid: u8,          // Service Identifier (SID)
-    pub did: Option<u16>, // Diagnostic Identifier (optional, some services use it)
+    /// Size of the payload (only 4 bits are used, max value is 7).
+    pub size: u8,
+    /// Service Identifier (SID) for the request or response.
+    pub sid: u8,
+    /// Optional Diagnostic Identifier (DID), used in certain services.
+    pub did: Option<u16>,
+    /// The actual payload data for the request or response.
     pub payload: Vec<u8>,
 }
 
+/// Represents a UDS First Frame.
+/// This frame is sent when the payload is too large for a single frame.
+/// It contains the total size of the payload and the initial data.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UdsFirstFrame {
-    pub size: u16,        // Size of total payload (12 bits)
-    pub sid: u8,          // Service Identifier (SID)
-    pub did: Option<u16>, // Diagnostic Identifier
+    /// Total size of the payload (only 12 bits are used).
+    pub size: u16,
+    /// Service Identifier (SID) for the request or response.
+    pub sid: u8,
+    /// Optional Diagnostic Identifier (DID), used in certain services.
+    pub did: Option<u16>,
+    /// The first portion of the payload.
     pub payload: Vec<u8>,
 }
 
+/// Represents a UDS Consecutive Frame.
+/// This frame is used for multi-frame transmissions after the First Frame.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UdsConsecutiveFrame {
-    pub seq_num: u8, // Sequence number (0-15, 4 bits)
+    /// Sequence number (4 bits, values range from 0 to 15).
+    pub seq_num: u8,
+    /// The next portion of the payload.
     pub payload: Vec<u8>,
 }
 
+/// Represents a UDS Flow Control Frame.
+/// This frame is sent by the receiver to control the flow of multi-frame transmissions.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UdsFlowControlFrame {
-    pub flag: u8,            // Flag status (0=Continue, 1=Wait, 2=Overflow)
-    pub block_size: u8,      // Number of Consecutive Frames to send before next FC
-    pub separation_time: u8, // Delay between frames in milliseconds
+    /// Flow control flag:
+    /// - `0x00` = Continue to send (CTS)
+    /// - `0x01` = Wait (WT)
+    /// - `0x02` = Overflow/abort (OVFLW)
+    pub flag: u8,
+    /// The number of Consecutive Frames the sender can transmit before waiting.
+    pub block_size: u8,
+    /// Minimum separation time (ST) in milliseconds between transmitted frames.
+    pub separation_time: u8,
+    /// Optional padding bytes (if required for 8-byte CAN frames).
     pub padding: Vec<u8>,
 }
 
 impl UdsNegativeResponse {
-    pub fn new(sid: u8, nrc: u8, size: u8) -> Self {
-        Self {
-            size,
-            rsid: sid,
-            nrc,
-        }
+    /// Creates a new UDS Negative Response frame.
+    ///
+    /// # Parameters:
+    /// - `rsid`: The requested service identifier that failed.
+    /// - `nrc`: The negative response code indicating the failure reason.
+    /// - `size`: Size of the response payload (max 7).
+    ///
+    /// # Returns:
+    /// - A `UdsNegativeResponse` instance.
+    pub fn new(rsid: UdsCommand, nrc: UdsError, size: u8) -> Self {
+        Self { size, rsid, nrc }
     }
 
+    /// Converts the negative response frame into a CAN frame byte vector.
+    ///
+    /// # Returns:
+    /// - `Vec<u8>`: A byte array representing the negative response frame.
     pub fn to_vec(&self) -> Vec<u8> {
-        let mut frame = Vec::new();
-        frame.push(self.size & 0x0F); // PCI byte (first nibble is 0 for Single Frame)
-        frame.push(0x7F); // Regative Response SID
-        frame.push(self.rsid); // Rejected SID
-        frame.push(self.nrc); // Negative Response Code (NRC)
-
-        frame
+        vec![self.size & 0x0F, 0x7F, self.rsid.into(), self.nrc.into()]
     }
 }
 
 impl UdsSingleFrame {
+    /// Creates a new UDS Single Frame.
+    ///
+    /// # Parameters:
+    /// - `sid`: Service Identifier.
+    /// - `did`: Optional Diagnostic Identifier.
+    /// - `payload`: The payload data (max 7 bytes).
+    ///
+    /// # Returns:
+    /// - `Ok(UdsSingleFrame)`: If the payload size is valid.
+    /// - `Err(FrameError)`: If the payload exceeds 7 bytes.
     pub fn new(sid: u8, did: Option<u16>, payload: Vec<u8>) -> Result<Self, FrameError> {
         if payload.len() > 7 {
             return Err(FrameError::InvalidCanLength);
@@ -237,6 +291,11 @@ impl UdsSingleFrame {
         })
     }
 
+    /// Converts the single frame into a CAN frame byte vector.
+    ///
+    /// # Returns:
+    /// - `Ok(Vec<u8>)`: The CAN frame representation.
+    /// - `Err(FrameError)`: If the payload size exceeds 7 bytes.
     pub fn to_vec(&self) -> Result<Vec<u8>, FrameError> {
         if self.payload.len() > 7 {
             return Err(FrameError::InvalidSize);
@@ -255,6 +314,17 @@ impl UdsSingleFrame {
 }
 
 impl UdsFirstFrame {
+    /// Creates a new UDS First Frame for multi-frame communication.
+    ///
+    /// # Parameters:
+    /// - `sid`: Service Identifier.
+    /// - `size`: Total payload size.
+    /// - `did`: Optional Diagnostic Identifier.
+    /// - `payload`: Initial chunk of the payload (max 6 bytes).
+    ///
+    /// # Returns:
+    /// - `Ok(UdsFirstFrame)`: If the payload size is valid.
+    /// - `Err(FrameError)`: If the payload exceeds 6 bytes.
     pub fn new(sid: u8, size: u16, did: Option<u16>, payload: Vec<u8>) -> Result<Self, FrameError> {
         if payload.len() > 6 {
             return Err(FrameError::InvalidCanLength);
@@ -268,6 +338,11 @@ impl UdsFirstFrame {
         })
     }
 
+    /// Converts the first frame into a CAN frame byte vector.
+    ///
+    /// # Returns:
+    /// - `Ok(Vec<u8>)`: The CAN frame representation.
+    /// - `Err(FrameError)`: If the payload size exceeds 6 bytes.
     pub fn to_vec(&self) -> Result<Vec<u8>, FrameError> {
         if self.payload.len() > 6 {
             return Err(FrameError::InvalidSize);
@@ -287,6 +362,15 @@ impl UdsFirstFrame {
 }
 
 impl UdsConsecutiveFrame {
+    /// Creates a new UDS Consecutive Frame.
+    ///
+    /// # Parameters:
+    /// - `seq_num`: Sequence number (0-15).
+    /// - `payload`: Payload data (max 7 bytes).
+    ///
+    /// # Returns:
+    /// - `Ok(UdsConsecutiveFrame)`: If the payload size is valid.
+    /// - `Err(FrameError)`: If the payload exceeds 7 bytes.
     pub fn new(seq_num: u8, payload: Vec<u8>) -> Result<Self, FrameError> {
         if payload.len() > 7 {
             return Err(FrameError::InvalidCanLength);
@@ -295,6 +379,11 @@ impl UdsConsecutiveFrame {
         Ok(Self { seq_num, payload })
     }
 
+    /// Converts the consecutive frame into a CAN frame byte vector.
+    ///
+    /// # Returns:
+    /// - `Ok(Vec<u8>)`: The CAN frame representation.
+    /// - `Err(FrameError)`: If the payload size exceeds 7 bytes.
     pub fn to_vec(&self) -> Result<Vec<u8>, FrameError> {
         if self.payload.len() > 7 {
             return Err(FrameError::InvalidSize);
@@ -309,6 +398,17 @@ impl UdsConsecutiveFrame {
 }
 
 impl UdsFlowControlFrame {
+    /// Creates a new UDS Flow Control Frame.
+    ///
+    /// # Parameters:
+    /// - `flag`: Flow control flag (0=CTS, 1=Wait, 2=Overflow).
+    /// - `block_size`: Number of consecutive frames before next flow control.
+    /// - `separation_time`: Time delay (in ms) between frames.
+    /// - `padding`: Optional padding data (max 5 bytes).
+    ///
+    /// # Returns:
+    /// - `Ok(UdsFlowControlFrame)`: If the padding size is valid.
+    /// - `Err(FrameError)`: If the padding exceeds 5 bytes.
     pub fn new(
         flag: u8,
         block_size: u8,
@@ -326,12 +426,19 @@ impl UdsFlowControlFrame {
         })
     }
 
+    /// Converts the flow control frame into a CAN frame byte vector.
+    ///
+    /// # Returns:
+    /// - `Ok(Vec<u8>)`: The CAN frame representation.
     pub fn to_vec(&self) -> Result<Vec<u8>, FrameError> {
-        let frame = vec![
+        let mut frame = vec![
             0x30 | (self.flag & 0x0F), // PCI byte
             self.block_size,
             self.separation_time,
         ];
+
+        // Append padding if any
+        frame.extend_from_slice(&self.padding);
 
         Ok(frame)
     }
