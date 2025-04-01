@@ -4,6 +4,8 @@ mod pci;
 mod response;
 mod services;
 
+use std::fmt;
+
 pub use client::UdsClient;
 pub use frame::*;
 pub use pci::{PciByte, PciType};
@@ -46,4 +48,30 @@ pub enum DiagError {
     },
     /// timeout response
     Timeout,
+}
+
+impl fmt::Display for DiagError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DiagError::NotSupported => write!(f, "Operation not supported"),
+            DiagError::ECUError { code, def } => match def {
+                Some(description) => write!(f, "ECU error: 0x{:02X} ({})", code, description),
+                None => write!(f, "ECU error: 0x{:02X} (Unknown definition)", code),
+            },
+            DiagError::EmptyResponse => write!(f, "Response was empty"),
+            DiagError::WrongMessage => write!(f, "ECU responded with an unrelated message"),
+            DiagError::ServerNotRunning => write!(f, "Diagnostic server is not running"),
+            DiagError::InvalidResponseLength => write!(f, "ECU responded with an incorrect message length"),
+            DiagError::ParameterInvalid => write!(f, "Invalid parameter passed to function"),
+            DiagError::ChannelError => write!(f, "Error in the communication channel"),
+            DiagError::HardwareError => write!(f, "Hardware error detected"),
+            DiagError::NotImplemented(feature) => write!(f, "Feature not implemented: {}", feature),
+            DiagError::MismatchedIdentResponse { want, received } => write!(
+                f,
+                "Mismatched PID response: Expected 0x{:04X}, but received 0x{:04X}",
+                want, received
+            ),
+            DiagError::Timeout => write!(f, "Response timeout"),
+        }
+    }
 }
