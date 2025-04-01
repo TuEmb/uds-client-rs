@@ -50,20 +50,27 @@ use log::debug;
 use std::sync::{Arc, LazyLock};
 
 pub struct UdsClient<'a, T: CanSocketTx> {
-    channel: T,
-    id: Id,
-    resp: &'a Arc<ResponseSlot>,
+    channel: T,                  // The CAN socket channel to transmit data
+    id: Id,                      // The identifier used for the CAN message
+    resp: &'a Arc<ResponseSlot>, // A reference to the response slot for handling responses
 }
 
 #[allow(dead_code)]
 impl<'a, T: CanSocketTx> UdsClient<'a, T> {
+    /// Create a new UdsClient instance.
+    ///
+    /// Takes a CAN socket channel `channel`, a 32-bit identifier `id`, and a reference
+    /// to a `ResponseSlot` wrapped in `Arc`. The `Id::Extended` is used to create a unique
+    /// identifier for the CAN frame.
     pub fn new(channel: T, id: u32, resp: &'a LazyLock<Arc<ResponseSlot>>) -> Self {
         let id = Id::Extended(ExtendedId::new(id).unwrap());
         Self { channel, id, resp }
     }
 
-    /// Send a command without the response.
-    /// The frame includes <PCI> <CMD> <ARGS> as ISO 15765-2
+    /// Send a command without expecting a response.
+    ///
+    /// This function sends a command using ISO 15765-2 format, which includes PCI, CMD,
+    /// and ARGS. The `args` are added to the frame and sent using the `send_raw` method.
     pub async fn send_command<P: Into<u8>, M: Into<u8>>(
         &mut self,
         pci: P,
@@ -75,7 +82,10 @@ impl<'a, T: CanSocketTx> UdsClient<'a, T> {
         self.send_raw(&data).await
     }
 
-    /// Send an UDS frame without the response.
+    /// Send an UDS frame without expecting a response.
+    ///
+    /// This function sends the given `UdsFrame` to the CAN bus using the `send_raw` method
+    /// after converting the frame into a byte vector.
     pub async fn send_frame(&mut self, frame: UdsFrame) -> Result<(), DiagError> {
         if let Ok(data) = frame.to_vec() {
             self.send_raw(&data).await
@@ -84,7 +94,11 @@ impl<'a, T: CanSocketTx> UdsClient<'a, T> {
         }
     }
 
-    /// Send an UDS frame without the response.
+    /// Send an UDS frame and wait for a response.
+    ///
+    /// This function sends an `UdsFrame` to the CAN bus and waits for a response. If the
+    /// response is valid (`Response::Ok`), it returns the response frame, otherwise returns
+    /// the error contained in `Response::Error`.
     pub async fn send_frame_with_response(
         &mut self,
         frame: UdsFrame,
@@ -103,7 +117,10 @@ impl<'a, T: CanSocketTx> UdsClient<'a, T> {
     }
 
     /// Send a command with the response.
-    /// The frame includes <PCI> <CMD> <ARGS> as ISO 15765-2
+    ///
+    /// This function is similar to `send_command` but expects a response after sending
+    /// the command. It returns the response frame (`UdsFrame`) if successful, or the
+    /// error if something went wrong.
     pub async fn send_command_with_response<P: Into<u8>, M: Into<u8>>(
         &mut self,
         pci: P,
@@ -121,7 +138,10 @@ impl<'a, T: CanSocketTx> UdsClient<'a, T> {
         }
     }
 
-    /// Internal function: send raw data as bytes array to CAN bus.
+    /// Internal function: Send raw data to the CAN bus.
+    ///
+    /// This function sends the provided byte array `data` as a CAN frame using the `channel`.
+    /// It creates a new `Frame` using the `id` and the data, and transmits it over the CAN bus.
     async fn send_raw(&mut self, data: &[u8]) -> Result<(), DiagError> {
         let frame = T::Frame::new(self.id, data).unwrap();
         println!("send raw data frame: {:?}", frame.data());
@@ -129,7 +149,11 @@ impl<'a, T: CanSocketTx> UdsClient<'a, T> {
         Ok(())
     }
 
-    /// Internal function: send raw data as bytes array to CAN bus and wait for a response.
+    /// Internal function: Send raw data to the CAN bus and wait for a response.
+    ///
+    /// This function sends the byte array `data` as a CAN frame and waits for a response using
+    /// the `ResponseSlot`. It uses `wait_for_response` to receive the response, and returns the
+    /// received `Response`.
     async fn send_raw_with_response(&mut self, data: &[u8]) -> Result<Response, DiagError> {
         let frame = T::Frame::new(self.id, data).unwrap();
         self.channel.transmit(&frame).await.unwrap();
@@ -137,19 +161,11 @@ impl<'a, T: CanSocketTx> UdsClient<'a, T> {
         Ok(response)
     }
 
-    /// Receive the frame from UDS server
+    /// Receive a frame from the UDS server.
+    ///
+    /// This function waits for and receives a response from the UDS server using the `ResponseSlot`.
+    /// It blocks until a response is available and returns the response.
     pub async fn receive(&mut self) -> Response {
         self.resp.wait_for_response().await
     }
-
-    // pub fn send_raw_frame_with_response(&mut self, frame: T::Frame) -> Result<(), DiagError> {
-    //     if let Err(_) = self.channel.transmit(&frame) {
-    //         return Err(DiagError::NotSupported);
-    //     }
-    //     Ok(())
-    // }
-
-    // pub fn wait_response() -> Result<(), DiagError> {
-    //     Ok(())
-    // }
 }
