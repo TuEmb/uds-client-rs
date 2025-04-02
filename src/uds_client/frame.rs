@@ -3,34 +3,26 @@ use automotive_diag::uds::{UdsCommand, UdsError};
 use super::PciType;
 
 /// Represents errors that can occur while processing UDS frames.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum FrameError {
     /// The frame type is not recognized.
+    #[error("Invalid UDS frame type.")]
     InvalidFrameType,
     /// The frame size is invalid or too small.
+    #[error("Frame size is incorrect.")]
     InvalidSize,
     /// The Service Identifier (SID) is invalid.
+    #[error("Invalid Service Identifier (SID).")]
     InvalidSid,
     /// The Negative Response Code (NRC) is invalid.
+    #[error("Invalid Negative Response Code (NRC).")]
     InvalidNrc,
     /// The CAN message length is invalid.
+    #[error("Invalid CAN message length.")]
     InvalidCanLength,
     /// Other unspecified errors.
+    #[error("An unknown error occurred.")]
     Others,
-}
-
-impl std::fmt::Display for FrameError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let msg = match self {
-            FrameError::InvalidFrameType => "Invalid UDS frame type.",
-            FrameError::InvalidSize => "Frame size is incorrect.",
-            FrameError::InvalidSid => "Invalid Service Identifier (SID).",
-            FrameError::InvalidNrc => "Invalid Negative Response Code (NRC).",
-            FrameError::InvalidCanLength => "Invalid CAN message length.",
-            FrameError::Others => "An unknown error occurred.",
-        };
-        write!(f, "{}", msg)
-    }
 }
 
 /// UDS frame types:

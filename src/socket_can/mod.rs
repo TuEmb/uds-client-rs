@@ -1,17 +1,17 @@
-/// CAN Socket Communication for UDS Protocol (Universal Diagnostic Services)
-///
-/// This module provides abstractions for CAN bus communication using the UDS (Unified Diagnostic Services) protocol.
-/// It supports both Windows and Linux platforms with platform-specific implementations for CAN socket communication.
-///
-/// Key Features:
-/// - Cross-platform support for CAN communication using either `socketcan` (Linux) or `peak_can` (Windows).
-/// - Provides `UdsSocket` struct for both transmitting and receiving CAN frames.
-/// - Implements `CanSocketTx` and `CanSocketRx` traits for asynchronous transmission and reception of CAN frames.
-/// - Includes `UdsSocketTx` and `UdsSocketRx` types for managing transmission and reception sockets separately.
-/// - Supports raw data transmission and receiving UDS frames with a response.
-/// - Wraps error handling for both platforms (Linux and Windows) with appropriate error types.
-///
-/// The module is designed to facilitate diagnostic communication over CAN, such as in automotive or embedded systems.
+//! CAN Socket Communication for UDS Protocol (Universal Diagnostic Services)
+//!
+//! This module provides abstractions for CAN bus communication using the UDS (Unified Diagnostic Services) protocol.
+//! It supports both Windows and Linux platforms with platform-specific implementations for CAN socket communication.
+//!
+//! Key Features:
+//! - Cross-platform support for CAN communication using either `socketcan` (Linux) or `peak_can` (Windows).
+//! - Provides `UdsSocket` struct for both transmitting and receiving CAN frames.
+//! - Implements `CanSocketTx` and `CanSocketRx` traits for asynchronous transmission and reception of CAN frames.
+//! - Includes `UdsSocketTx` and `UdsSocketRx` types for managing transmission and reception sockets separately.
+//! - Supports raw data transmission and receiving UDS frames with a response.
+//! - Wraps error handling for both platforms (Linux and Windows) with appropriate error types.
+//!
+//! The module is designed to facilitate diagnostic communication over CAN, such as in automotive or embedded systems.
 
 #[cfg(target_os = "windows")]
 use embedded_can::ExtendedId;
