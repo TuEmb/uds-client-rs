@@ -16,7 +16,7 @@ mod ui;
 
 slint::include_modules!();
 pub static RESPONSE_SLOT: LazyLock<Arc<ResponseSlot>> =
-    LazyLock::new(|| Arc::new(ResponseSlot::new()));
+    LazyLock::new(|| Arc::new(ResponseSlot::new(None)));
 
 #[tokio::main]
 async fn main() {

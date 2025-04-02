@@ -14,25 +14,24 @@ pub enum Response {
 
 /// The response slot for each UDS request
 /// This struct holds the response data and a notification object to signal when the response is ready
-pub struct ResponseSlot(pub Mutex<RefCell<Response>>, pub Notify);
+pub struct ResponseSlot(pub Mutex<RefCell<Response>>, pub Notify, Duration);
 
 impl Default for ResponseSlot {
     fn default() -> Self {
-        Self::new()
+        Self::new(None)
     }
 }
 
 impl ResponseSlot {
-    // The default timeout value in milliseconds for waiting on a response.
-    const TIMEOUT: u64 = 1000;
-
     /// Create a new ResponseSlot.
     ///
     /// This will initialize the slot with a default error (NotSupported) and set up the notification system.
-    pub fn new() -> Self {
+    /// The `timeout_ms` is an optional input in milisecs, the default timeout is 1000ms.
+    pub fn new(timeout_ms: Option<u64>) -> Self {
         Self(
             Mutex::new(RefCell::new(Response::Error(DiagError::NotSupported))), // Default to NotSupported error.
             Notify::new(), // Create a Notify object to handle asynchronous notifications.
+            Duration::from_millis(timeout_ms.unwrap_or(1000)), // Use provided timeout or default to 1000ms.
         )
     }
 
@@ -63,7 +62,7 @@ impl ResponseSlot {
                 data.borrow().clone()
             }
             // If the timeout period elapses, return a Timeout error response.
-            _ = tokio::time::sleep(Duration::from_millis(Self::TIMEOUT)) => {
+            _ = tokio::time::sleep(Duration::from_millis(self.2.as_millis() as u64)) => {
                 Response::Error(DiagError::Timeout)
             }
         }
