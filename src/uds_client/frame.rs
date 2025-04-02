@@ -1,7 +1,9 @@
 use automotive_diag::uds::{UdsCommand, UdsError};
 
+use super::PciType;
+
 /// Represents errors that can occur while processing UDS frames.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FrameError {
     /// The frame type is not recognized.
     InvalidFrameType,
@@ -47,6 +49,17 @@ pub enum UdsFrame {
 }
 
 impl UdsFrame {
+    /// return PCI type of UDS frame
+    pub fn pci_type(&self) -> PciType {
+        match self {
+            UdsFrame::Single(_) => PciType::SingleFrame,
+            UdsFrame::First(_) => PciType::FirstFrame,
+            UdsFrame::Consecutive(_) => PciType::ConsecutiveFrame,
+            UdsFrame::FlowControl(_) => PciType::FlowControl,
+            UdsFrame::NegativeResp(_) => PciType::SingleFrame,
+        }
+    }
+
     /// verify if the frame is negative response frame.
     pub fn is_negative_frame(&self) -> bool {
         matches!(self, UdsFrame::NegativeResp(_frame))

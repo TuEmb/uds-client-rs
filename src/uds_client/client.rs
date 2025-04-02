@@ -87,10 +87,9 @@ impl<'a, T: CanSocketTx> UdsClient<'a, T> {
     /// This function sends the given `UdsFrame` to the CAN bus using the `send_raw` method
     /// after converting the frame into a byte vector.
     pub async fn send_frame(&mut self, frame: UdsFrame) -> Result<(), DiagError> {
-        if let Ok(data) = frame.to_vec() {
-            self.send_raw(&data).await
-        } else {
-            Err(DiagError::WrongMessage)
+        match frame.to_vec() {
+            Ok(data) => self.send_raw(&data).await,
+            Err(e) => Err(DiagError::FrameError { error: (e) }),
         }
     }
 
@@ -103,16 +102,15 @@ impl<'a, T: CanSocketTx> UdsClient<'a, T> {
         &mut self,
         frame: UdsFrame,
     ) -> Result<UdsFrame, DiagError> {
-        if let Ok(data) = frame.to_vec() {
-            match self.send_raw_with_response(&data).await? {
+        match frame.to_vec() {
+            Ok(data) => match self.send_raw_with_response(&data).await? {
                 Response::Ok(items) => {
                     debug!("got response: {:?}", items);
                     Ok(items)
                 }
                 Response::Error(e) => Err(e),
-            }
-        } else {
-            Err(DiagError::WrongMessage)
+            },
+            Err(e) => Err(DiagError::FrameError { error: (e) }),
         }
     }
 

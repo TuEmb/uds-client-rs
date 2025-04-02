@@ -140,7 +140,10 @@ impl<T: CanSocketTx> UdsClient<'_, T> {
                 }
             }
         } else {
-            return Err(DiagError::WrongMessage);
+            return Err(DiagError::WrongPciType {
+                want: crate::PciType::FirstFrame,
+                received: response.pci_type(),
+            });
         }
 
         if remain == 0 {

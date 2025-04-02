@@ -4,42 +4,70 @@ mod pci;
 mod response;
 mod services;
 
-use std::fmt;
-
+use automotive_diag::uds::{UdsCommand, UdsError};
 pub use client::UdsClient;
 pub use frame::*;
 pub use pci::{PciByte, PciType};
 pub use response::{Response, ResponseSlot};
 pub use services::RealTimeType;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, thiserror::Error)]
 /// Diagnostic server error
 pub enum DiagError {
+    #[error("Diagnostic server does not support the request")]
     NotSupported,
+    /// Negative Response from ECU
+    #[error("ECU error: 0x{:02X} ({:?})", *code as u8, def)]
     ECUError {
         /// Raw Negative response code from ECU
-        code: u8,
+        code: UdsError,
         /// Negative response code definition according to protocol
         def: Option<String>,
     },
     /// Response empty
+    #[error("ECU did not respond to the request")]
     EmptyResponse,
     /// ECU Responded but send a message that wasn't a reply for the sent message
-    WrongMessage,
+    #[error("ECU response is wrong command. Expected: {want}, received {received}")]
+    WrongMessage {
+        /// Requested SID
+        want: UdsCommand,
+        /// Received SID from ECU
+        received: UdsCommand,
+    },
+    /// ECU Responded wrong PCI type
+    #[error("ECU response is wrong PCI type. Expected: {want:?}, received {received:?}")]
+    WrongPciType {
+        /// Requested SID
+        want: PciType,
+        /// Received SID from ECU
+        received: PciType,
+    },
     /// Diagnostic server terminated!?
+    #[error("Diagnostic server was not running")]
     ServerNotRunning,
     /// ECU Responded with a message, but the length was incorrect
+    #[error("ECU response size was not the correct length")]
     InvalidResponseLength,
     /// A parameter given to the function is invalid. Check the function's documentation
     /// for more information
+    #[error("Diagnostic function parameter invalid")]
     ParameterInvalid,
     /// Error with underlying communication channel
+    #[error("Diagnostic server hardware channel error")]
     ChannelError,
     /// Device hardware error
+    #[error("Diagnostic server hardware error")]
     HardwareError,
     /// Feauture is not iumplemented yet
+    #[error("Diagnostic server feature is unimplemented: '{0}'")]
     NotImplemented(String),
     /// Mismatched PID response ID
+    #[error(
+        "Requested Ident 0x{:04X?}, but received ident 0x{:04X?}",
+        want,
+        received
+    )]
     MismatchedIdentResponse {
         /// Requested PID
         want: u16,
@@ -47,33 +75,12 @@ pub enum DiagError {
         received: u16,
     },
     /// timeout response
+    #[error("ECU server didn't response in time")]
     Timeout,
-}
-
-impl fmt::Display for DiagError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DiagError::NotSupported => write!(f, "Operation not supported"),
-            DiagError::ECUError { code, def } => match def {
-                Some(description) => write!(f, "ECU error: 0x{:02X} ({})", code, description),
-                None => write!(f, "ECU error: 0x{:02X} (Unknown definition)", code),
-            },
-            DiagError::EmptyResponse => write!(f, "Response was empty"),
-            DiagError::WrongMessage => write!(f, "ECU responded with an unrelated message"),
-            DiagError::ServerNotRunning => write!(f, "Diagnostic server is not running"),
-            DiagError::InvalidResponseLength => {
-                write!(f, "ECU responded with an incorrect message length")
-            }
-            DiagError::ParameterInvalid => write!(f, "Invalid parameter passed to function"),
-            DiagError::ChannelError => write!(f, "Error in the communication channel"),
-            DiagError::HardwareError => write!(f, "Hardware error detected"),
-            DiagError::NotImplemented(feature) => write!(f, "Feature not implemented: {}", feature),
-            DiagError::MismatchedIdentResponse { want, received } => write!(
-                f,
-                "Mismatched PID response: Expected 0x{:04X}, but received 0x{:04X}",
-                want, received
-            ),
-            DiagError::Timeout => write!(f, "Response timeout"),
-        }
-    }
+    /// Other Diagnostic Error
+    #[error("Diag Frame Error: {error}")]
+    FrameError { error: FrameError },
+    /// Other Diagnostic Error
+    #[error("Unkown Diagnostic Error")]
+    Others,
 }

@@ -15,6 +15,7 @@ nb = "1"
 automotive_diag = "0.1.11"
 chrono = "0.4.40"
 embedded-can = "0.4.1"
+thiserror = "2.0.12"
 
 [target.'cfg(windows)'.dependencies]
 peak-can = "0.1.1"
