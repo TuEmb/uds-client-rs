@@ -91,11 +91,11 @@ pub struct UdsSocketRx {
 
 impl UdsSocket {
     #[cfg(target_os = "linux")]
-    pub fn new(socket: &str) -> Self {
+    pub fn new(socket: &str, server_id: u32) -> Self {
         use socketcan::{CanFilter, SocketOptions};
 
         let can_socket = CanSocket::open(socket).unwrap();
-        let filter = CanFilter::new(0x7F0, 0x1FFFFFFF);
+        let filter = CanFilter::new(server_id, 0x1FFFFFFF);
         let _ = can_socket.set_filters(&[filter]);
         Self { can_socket }
     }

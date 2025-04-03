@@ -24,7 +24,7 @@ async fn main() {
         .filter_level(log::LevelFilter::Debug)
         .init();
     #[cfg(target_os = "linux")]
-    let (tx_socket, rx_socket) = UdsSocket::new("can0").split();
+    let (tx_socket, rx_socket) = UdsSocket::new("can0", 0x7F0).split();
     #[cfg(target_os = "windows")]
     let (tx_socket, rx_socket) = UdsSocket::new().split();
     let (ui_tx, uds_rx) = mpsc::channel::<UiEventTx>(10);
