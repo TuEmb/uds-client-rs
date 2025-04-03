@@ -101,7 +101,9 @@ impl UdsSocket {
     }
 
     #[cfg(target_os = "windows")]
-    pub fn new() -> Self {
+    pub fn new(server_id: u32) -> Self {
+        use peak_can::df::SetAcceptanceFilter29Bit;
+
         let can_socket = match UsbCanSocket::open(UsbBus::USB1, Baudrate::Baud500K) {
             Ok(socket) => socket,
             Err(e) => {
@@ -109,6 +111,7 @@ impl UdsSocket {
                 UsbCanSocket::open_with_usb_bus(UsbBus::USB1)
             }
         };
+        can_socket.set_acceptance_filter_29bit(&[server_id]).unwrap();
         Self { can_socket }
     }
 
