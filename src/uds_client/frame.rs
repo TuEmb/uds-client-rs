@@ -41,6 +41,16 @@ pub enum UdsFrame {
 }
 
 impl UdsFrame {
+    /// default constructor for UDS frame
+    pub fn default() -> Self {
+        UdsFrame::Single(UdsSingleFrame {
+            size: 0,
+            sid: 0,
+            did: None,
+            payload: Vec::new(),
+        })
+    }
+
     /// return PCI type of UDS frame
     pub fn pci_type(&self) -> PciType {
         match self {
