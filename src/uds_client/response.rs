@@ -1,3 +1,4 @@
+use automotive_diag::uds::UdsError;
 use std::{cell::RefCell, time::Duration};
 use tokio::sync::{Mutex, Notify};
 
@@ -54,16 +55,30 @@ impl ResponseSlot {
     /// This function uses `tokio::select!` to wait for either the notification or the timeout.
     /// If the timeout expires, it returns a `Timeout` error.
     pub async fn wait_for_response(&self) -> Response {
-        tokio::select! {
-            // Wait for the notification that the response is available.
-            _ = self.1.notified() => {
-                // Lock the Mutex to access the response and return the data.
-                let data = self.0.lock().await;
-                data.borrow().clone()
-            }
-            // If the timeout period elapses, return a Timeout error response.
-            _ = tokio::time::sleep(Duration::from_millis(self.2.as_millis() as u64)) => {
-                Response::Error(DiagError::Timeout)
+        let mut pending_response = None;
+        loop {
+            tokio::select! {
+                _ = self.1.notified() => {
+                    let data = self.0.lock().await;
+                    match &*data.borrow() {
+                        // handle the case where the response is a pending response
+                        // and we need to wait for the next response or timeout
+                        Response::Ok(UdsFrame::NegativeResp(neg_resp))
+                            if neg_resp.nrc == UdsError::RequestCorrectlyReceivedResponsePending =>
+                        {
+                            pending_response = Some(data.borrow().clone());
+                            continue;
+                        }
+                        resp => return resp.clone(),
+                    }
+                }
+                _ = tokio::time::sleep(self.2) => {
+                    if let Some(pending_response) = pending_response {
+                        return pending_response
+                    } else {
+                        return Response::Error(DiagError::Timeout)
+                    }
+                }
             }
         }
     }
