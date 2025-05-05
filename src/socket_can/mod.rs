@@ -111,7 +111,9 @@ impl UdsSocket {
                 UsbCanSocket::open_with_usb_bus(UsbBus::USB1)
             }
         };
-        can_socket.set_acceptance_filter_29bit(&[server_id]).unwrap();
+        can_socket
+            .set_acceptance_filter_29bit(&[server_id])
+            .unwrap();
         Self { can_socket }
     }
 
