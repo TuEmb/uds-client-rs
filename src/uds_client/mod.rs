@@ -21,6 +21,8 @@ pub enum DiagError {
     ECUError {
         /// Raw Negative response code from ECU
         code: UdsError,
+        /// Requested SID
+        rsid: UdsCommand,
         /// Negative response code definition according to protocol
         def: Option<String>,
     },

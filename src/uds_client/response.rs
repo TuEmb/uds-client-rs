@@ -2,10 +2,7 @@ use automotive_diag::uds::UdsError;
 use std::{cell::RefCell, time::Duration};
 use tokio::sync::{Mutex, Notify};
 
-use super::{
-    DiagError,
-    frame::{FrameError, UdsFrame},
-};
+use super::{DiagError, frame::UdsFrame};
 
 #[derive(Debug, Clone)]
 pub enum Response {
@@ -63,8 +60,8 @@ impl ResponseSlot {
                     match &*data.borrow() {
                         // handle the case where the response is a pending response
                         // and we need to wait for the next response or timeout
-                        Response::Ok(UdsFrame::NegativeResp(neg_resp))
-                            if neg_resp.nrc == UdsError::RequestCorrectlyReceivedResponsePending =>
+                        Response::Error(DiagError::ECUError { code, rsid: _, def: _ })
+                            if *code == UdsError::RequestCorrectlyReceivedResponsePending =>
                         {
                             pending_response = Some(data.borrow().clone());
                             continue;
@@ -88,7 +85,7 @@ impl ResponseSlot {
     /// This function is used to update the response after receiving new data.
     /// It creates a UdsFrame from the provided `new_data` and replaces the current response data.
     /// After updating, it notifies the waiting task that the response is ready.
-    pub async fn update_response(&self, new_data: Vec<u8>) -> Result<(), FrameError> {
+    pub async fn update_response(&self, new_data: Vec<u8>) -> Result<(), DiagError> {
         // Convert the new data into a UdsFrame, handling any errors.
         let res = UdsFrame::from_vec(new_data)?;
 

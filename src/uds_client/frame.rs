@@ -1,6 +1,6 @@
 use automotive_diag::uds::{UdsCommand, UdsError};
 
-use super::PciType;
+use super::{DiagError, PciType};
 
 /// Represents errors that can occur while processing UDS frames.
 #[derive(Debug, Clone, thiserror::Error)]
@@ -37,12 +37,10 @@ pub enum UdsFrame {
     First(UdsFirstFrame),
     Consecutive(UdsConsecutiveFrame),
     FlowControl(UdsFlowControlFrame),
-    NegativeResp(UdsNegativeResponse),
 }
 
-impl UdsFrame {
-    /// default constructor for UDS frame
-    pub fn default() -> Self {
+impl Default for UdsFrame {
+    fn default() -> Self {
         UdsFrame::Single(UdsSingleFrame {
             size: 0,
             sid: 0,
@@ -50,7 +48,9 @@ impl UdsFrame {
             payload: Vec::new(),
         })
     }
+}
 
+impl UdsFrame {
     /// return PCI type of UDS frame
     pub fn pci_type(&self) -> PciType {
         match self {
@@ -58,13 +58,7 @@ impl UdsFrame {
             UdsFrame::First(_) => PciType::FirstFrame,
             UdsFrame::Consecutive(_) => PciType::ConsecutiveFrame,
             UdsFrame::FlowControl(_) => PciType::FlowControl,
-            UdsFrame::NegativeResp(_) => PciType::SingleFrame,
         }
-    }
-
-    /// verify if the frame is negative response frame.
-    pub fn is_negative_frame(&self) -> bool {
-        matches!(self, UdsFrame::NegativeResp(_frame))
     }
 
     /// verify if the frame is single frame.
@@ -87,38 +81,47 @@ impl UdsFrame {
         matches!(self, UdsFrame::FlowControl(_frame))
     }
 
-    pub fn to_vec(&self) -> Result<Vec<u8>, FrameError> {
+    pub fn to_vec(&self) -> Result<Vec<u8>, DiagError> {
         match self {
             UdsFrame::Single(uds_single_frame) => uds_single_frame.to_vec(),
             UdsFrame::First(uds_first_frame) => uds_first_frame.to_vec(),
             UdsFrame::Consecutive(uds_consecutive_frame) => uds_consecutive_frame.to_vec(),
             UdsFrame::FlowControl(uds_flow_control_frame) => uds_flow_control_frame.to_vec(),
-            UdsFrame::NegativeResp(uds_negative_response) => Ok(uds_negative_response.to_vec()),
         }
     }
 
-    pub fn from_vec(data: Vec<u8>) -> Result<Self, FrameError> {
-        let frame_type = data
-            .first()
-            .map(|b| b >> 4)
-            .ok_or(FrameError::InvalidCanLength)?;
+    pub fn from_vec(data: Vec<u8>) -> Result<Self, DiagError> {
+        let frame_type = data.first().map(|b| b >> 4).ok_or(DiagError::FrameError {
+            error: FrameError::InvalidCanLength,
+        })?;
 
         match frame_type {
             0x0 => {
                 // Single Frame
                 let size = data[0] & 0x0F;
-                let sid = *data.get(1).ok_or(FrameError::InvalidSize)?;
+                let sid = *data.get(1).ok_or(DiagError::FrameError {
+                    error: FrameError::InvalidSize,
+                })?;
 
                 if sid == 0x7F {
-                    let rsid = UdsCommand::from_repr(*data.get(2).ok_or(FrameError::InvalidSid)?)
-                        .ok_or(FrameError::InvalidSid)?;
-                    let nrc = UdsError::from_repr(*data.get(3).ok_or(FrameError::InvalidNrc)?)
-                        .ok_or(FrameError::InvalidNrc)?;
-                    return Ok(UdsFrame::NegativeResp(UdsNegativeResponse {
-                        size,
+                    let rsid =
+                        UdsCommand::from_repr(*data.get(2).ok_or(DiagError::FrameError {
+                            error: FrameError::InvalidSid,
+                        })?)
+                        .ok_or(DiagError::FrameError {
+                            error: FrameError::InvalidSid,
+                        })?;
+                    let nrc = UdsError::from_repr(*data.get(3).ok_or(DiagError::FrameError {
+                        error: FrameError::InvalidNrc,
+                    })?)
+                    .ok_or(DiagError::FrameError {
+                        error: FrameError::InvalidNrc,
+                    })?;
+                    return Err(DiagError::ECUError {
+                        code: nrc,
                         rsid,
-                        nrc,
-                    }));
+                        def: None,
+                    });
                 }
 
                 let did = if data.len() > 2 {
@@ -140,8 +143,12 @@ impl UdsFrame {
             0x1 => {
                 // First Frame
                 let size = (((data[0] & 0x0F) as u16) << 8)
-                    | (*data.get(1).ok_or(FrameError::InvalidSize)? as u16);
-                let sid = *data.get(2).ok_or(FrameError::InvalidSize)?;
+                    | (*data.get(1).ok_or(DiagError::FrameError {
+                        error: FrameError::InvalidSize,
+                    })? as u16);
+                let sid = *data.get(2).ok_or(DiagError::FrameError {
+                    error: FrameError::InvalidSize,
+                })?;
 
                 let did = data
                     .get(3..5)
@@ -169,8 +176,12 @@ impl UdsFrame {
                 // Flow Control Frame
                 let (flag, block_size, separation_time) = (
                     data[0] & 0x0F,
-                    *data.get(1).ok_or(FrameError::InvalidSize)?,
-                    *data.get(2).ok_or(FrameError::InvalidSize)?,
+                    *data.get(1).ok_or(DiagError::FrameError {
+                        error: FrameError::InvalidSize,
+                    })?,
+                    *data.get(2).ok_or(DiagError::FrameError {
+                        error: FrameError::InvalidSize,
+                    })?,
                 );
                 let padding = data.get(3..).unwrap_or(&[]).to_vec();
                 Ok(UdsFrame::FlowControl(UdsFlowControlFrame {
@@ -180,7 +191,9 @@ impl UdsFrame {
                     padding,
                 }))
             }
-            _ => Err(FrameError::InvalidFrameType),
+            _ => Err(DiagError::FrameError {
+                error: FrameError::InvalidFrameType,
+            }),
         }
     }
 }
@@ -310,10 +323,12 @@ impl UdsSingleFrame {
     ///
     /// # Returns:
     /// - `Ok(Vec<u8>)`: The CAN frame representation.
-    /// - `Err(FrameError)`: If the payload size exceeds 7 bytes.
-    pub fn to_vec(&self) -> Result<Vec<u8>, FrameError> {
+    /// - `Err(DiagError)`: If the payload size exceeds 7 bytes.
+    pub fn to_vec(&self) -> Result<Vec<u8>, DiagError> {
         if self.payload.len() > 7 {
-            return Err(FrameError::InvalidSize);
+            return Err(DiagError::FrameError {
+                error: FrameError::InvalidSize,
+            });
         }
 
         let mut frame = Vec::new();
@@ -357,10 +372,12 @@ impl UdsFirstFrame {
     ///
     /// # Returns:
     /// - `Ok(Vec<u8>)`: The CAN frame representation.
-    /// - `Err(FrameError)`: If the payload size exceeds 6 bytes.
-    pub fn to_vec(&self) -> Result<Vec<u8>, FrameError> {
+    /// - `Err(DiagError)`: If the payload size exceeds 6 bytes.
+    pub fn to_vec(&self) -> Result<Vec<u8>, DiagError> {
         if self.payload.len() > 6 {
-            return Err(FrameError::InvalidSize);
+            return Err(DiagError::FrameError {
+                error: FrameError::InvalidSize,
+            });
         }
 
         let mut frame = Vec::new();
@@ -398,10 +415,12 @@ impl UdsConsecutiveFrame {
     ///
     /// # Returns:
     /// - `Ok(Vec<u8>)`: The CAN frame representation.
-    /// - `Err(FrameError)`: If the payload size exceeds 7 bytes.
-    pub fn to_vec(&self) -> Result<Vec<u8>, FrameError> {
+    /// - `Err(DiagError)`: If the payload size exceeds 7 bytes.
+    pub fn to_vec(&self) -> Result<Vec<u8>, DiagError> {
         if self.payload.len() > 7 {
-            return Err(FrameError::InvalidSize);
+            return Err(DiagError::FrameError {
+                error: FrameError::InvalidSize,
+            });
         }
 
         let mut frame = Vec::new();
@@ -445,7 +464,7 @@ impl UdsFlowControlFrame {
     ///
     /// # Returns:
     /// - `Ok(Vec<u8>)`: The CAN frame representation.
-    pub fn to_vec(&self) -> Result<Vec<u8>, FrameError> {
+    pub fn to_vec(&self) -> Result<Vec<u8>, DiagError> {
         let mut frame = vec![
             0x30 | (self.flag & 0x0F), // PCI byte
             self.block_size,
