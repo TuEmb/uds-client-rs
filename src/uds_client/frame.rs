@@ -198,18 +198,6 @@ impl UdsFrame {
     }
 }
 
-/// Represents a UDS Negative Response frame.
-/// This frame is sent by the ECU when a UDS request fails.
-#[derive(Debug, Clone, PartialEq)]
-pub struct UdsNegativeResponse {
-    /// Size of the payload (only 4 bits are used, max value is 7).
-    pub size: u8,
-    /// Service Identifier (SID) that caused the negative response.
-    pub rsid: UdsCommand,
-    /// Negative Response Code (NRC) indicating the reason for failure.
-    pub nrc: UdsError,
-}
-
 /// Represents a UDS Single Frame.
 /// This frame is used when the total payload fits within a single CAN frame.
 #[derive(Debug, Clone, PartialEq)]
@@ -264,29 +252,6 @@ pub struct UdsFlowControlFrame {
     pub separation_time: u8,
     /// Optional padding bytes (if required for 8-byte CAN frames).
     pub padding: Vec<u8>,
-}
-
-impl UdsNegativeResponse {
-    /// Creates a new UDS Negative Response frame.
-    ///
-    /// # Parameters:
-    /// - `rsid`: The requested service identifier that failed.
-    /// - `nrc`: The negative response code indicating the failure reason.
-    /// - `size`: Size of the response payload (max 7).
-    ///
-    /// # Returns:
-    /// - A `UdsNegativeResponse` instance.
-    pub fn new(rsid: UdsCommand, nrc: UdsError, size: u8) -> Self {
-        Self { size, rsid, nrc }
-    }
-
-    /// Converts the negative response frame into a CAN frame byte vector.
-    ///
-    /// # Returns:
-    /// - `Vec<u8>`: A byte array representing the negative response frame.
-    pub fn to_vec(&self) -> Vec<u8> {
-        vec![self.size & 0x0F, 0x7F, self.rsid.into(), self.nrc.into()]
-    }
 }
 
 impl UdsSingleFrame {
