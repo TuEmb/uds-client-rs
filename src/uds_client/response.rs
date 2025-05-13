@@ -85,17 +85,17 @@ impl ResponseSlot {
     /// This function is used to update the response after receiving new data.
     /// It creates a UdsFrame from the provided `new_data` and replaces the current response data.
     /// After updating, it notifies the waiting task that the response is ready.
-    pub async fn update_response(&self, new_data: Vec<u8>) -> Result<(), DiagError> {
+    pub async fn update_response(&self, new_data: Vec<u8>) {
         // Convert the new data into a UdsFrame, handling any errors.
-        let res = UdsFrame::from_vec(new_data)?;
+        let resp = match UdsFrame::from_vec(new_data) {
+            Ok(frame) => Response::Ok(frame),
+            Err(e) => Response::Error(e),
+        };
 
-        // Lock the Mutex and update the response with the new data (Ok variant).
-        self.0.lock().await.replace(Response::Ok(res)); // Lock and modify data
+        // Lock the Mutex and update the response with the new data.
+        self.0.lock().await.replace(resp); // Lock and modify data
 
         // Notify any waiting task that a response is available.
         self.1.notify_one(); // Notify the waiting thread
-
-        // Return Ok if the update was successful.
-        Ok(())
     }
 }
