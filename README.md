@@ -14,7 +14,7 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-uds-client-rs = "0.1"
+uds-client = "0.1"
 tokio = { version = "1", features = ["full"] }
 ```
 

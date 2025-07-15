@@ -24,15 +24,15 @@
 //!
 //! ## Usage
 //!
-//! Add `uds-client-rs` to your `Cargo.toml`:
+//! Add `uds-client` to your `Cargo.toml`:
 //! ```toml
 //! [dependencies]
-//! uds-client-rs = "0.1"
+//! uds-client = "0.1"
 //! ```
 //!
 //! Example usage:
 //! ```rust
-//! use uds_client_rs::UdsClient;
+//! use uds_client::UdsClient;
 //!
 //! #[tokio::main]
 //! async fn main() {
